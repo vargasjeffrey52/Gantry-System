@@ -19,8 +19,9 @@ void enqueue_gcode(Parser::g_code_command gcode) {
 
 // Get g-code from the queue for processing
 Parser::g_code_command dequeue_gcode() {
+   
     if (Gcode_BUFFER_SIZE == 0) {
-        return GCODE;
+        return Parser::g_code_command(); // return empty gcode object
     }
     Parser::g_code_command gcode = Gcode_BUFFER[TAIL];
     TAIL = (TAIL + 1) % NUMBER_OF_GCODES;
