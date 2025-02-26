@@ -46,3 +46,39 @@ void Processor::send_to_parser(String command){
         }
 
 }
+
+
+bool Processor::is_movement_command(Parser::g_code_command gcode){
+    if (gcode.main_command == "G0" || gcode.main_command == "G1" || gcode.main_command == "G2" || gcode.main_command == "G3"){
+        return true;
+    }
+    return false;
+}
+
+bool Processor::is_modifier_command(Parser::g_code_command gcode){
+    if (gcode.main_command == "G90" || gcode.main_command == "G91" || gcode.main_command == "M502" || gcode.main_command == "M114" || gcode.main_command == "M119"){
+        return true;
+    }
+    return false;
+}
+
+bool Processor::is_getter_command(Parser::g_code_command gcode){
+    if (gcode.main_command == "M114" || gcode.main_command == "M119"){
+        return true;
+    }
+    return false;
+}
+
+void Processor::send_to_motion_control(Parser::g_code_command gcode){
+    // do something
+    Serial.println("Sending to motion control ##############");
+}
+
+void Processor::send_to_modifier(Parser::g_code_command gcode){
+    // do something
+    Serial.println("Sending to modifier ##############");
+}
+void Processor::send_to_getter(Parser::g_code_command gcode){
+    // do something
+    Serial.println("Sending to getter ##############");
+}

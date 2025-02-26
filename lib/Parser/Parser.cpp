@@ -2,15 +2,15 @@
 #include "globals.h"
 
 // Define the static members
-const StringType Parser::validCommandsWParams[] = {"G0", "G1", "G2", "G3", "G92", "G28", "M17", "M18", "M203", "M201"};
-const StringType Parser::validCommandsWoutParams[] = {"G90", "G91", "M502", "M114", "M119"};
+// const StringType Parser::validCommandsWParams[] = {"G0", "G1", "G2", "G3", "G92", "G28", "M17", "M18", "M203", "M201"};
+// const StringType Parser::validCommandsWoutParams[] = {"G90", "G91", "M502", "M114", "M119"};
 
 // command to arr (split by ' ')
 int Parser::command_to_arr(const StringType& command, char delimiter, StringType* commandsArr) {
     int startindx = 0;
     int endindx = 0;
     int arrindx = 0;
-    for (int i = 0; i < command.length(); i++) {
+    for (unsigned int i = 0; i < command.length(); i++) {
         if (command[i] == delimiter) {
             endindx = i;
             #ifdef ARDUINO
@@ -82,7 +82,7 @@ bool Parser::validate_params_with_values(const StringType* cmd_Array, int size) 
                 // empty value could apply to commands such as M17 where no value is needed to enable motor
                 continue;
             }
-            for(int j = 1; j < cmd_Array[i].length(); j++) {
+            for(unsigned int j = 1; j < cmd_Array[i].length(); j++) {
                 if (!isDigit(cmd_Array[i][j]) && cmd_Array[i][j] != '.' && cmd_Array[i][j] != '-') {
                     _systemMessage = "Error: Invalid value in parameter " + cmd_Array[i];
                     return false;

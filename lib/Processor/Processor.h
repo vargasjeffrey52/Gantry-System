@@ -5,16 +5,16 @@
 class Processor {
 public:
     Processor() = default;
-    bool is_movement_command(String command);
-    bool is_modifier_command(String command);
+    bool is_movement_command(Parser::g_code_command gcode);
+    bool is_modifier_command(Parser::g_code_command gcode);
+    bool is_getter_command(Parser::g_code_command gcode);
 
-    void send_to_motion_control(String command);
-    void send_to_modifier(String command);
     void send_to_parser(String command);
+    void send_to_motion_control(Parser::g_code_command gcode);
+    void send_to_modifier(Parser::g_code_command gcode);
+    void send_to_getter(Parser::g_code_command gcode);
 
 
 private:
     String commandsArr[10]; // size of array for parsing G-code string command
-
-
 };

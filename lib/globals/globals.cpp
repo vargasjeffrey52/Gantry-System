@@ -5,6 +5,10 @@ Parser PARSER;
 Parser::g_code_command Gcode_BUFFER[NUMBER_OF_GCODES];
 Parser::g_code_command GCODE;
 
+const StringType validCommandsWParams[NUM_VALID_COMMANDS_W_PARAMS] = {"G0", "G1", "G2", "G3", "G92", "G28", "M17", "M18", "M203", "M201"};
+const StringType validCommandsWoutParams[NUM_VALID_COMMANDS_WO_PARAMS] = {"G90", "G91", "M502", "M114", "M119"};
+
+
 int HEAD = 0, TAIL = 0, Gcode_BUFFER_SIZE = 0;
 float Xcurrent = 0, Ycurrent = 0, jcurrent, icurrent, rcurrent;
 

@@ -61,8 +61,8 @@ private:
     StringType _systemMessage;
     
     // Declare static valid command arrays for commands with and without parameters
-    static const StringType validCommandsWParams[];
-    static const StringType validCommandsWoutParams[];
+    // static const StringType validCommandsWParams[];
+    // static const StringType validCommandsWoutParams[];
 };
 
 // Declare global instance of Parser

@@ -1,7 +1,5 @@
 #include "CommandParser.h"
 
-const StringType CommandParser::validCommandsWParams[] = {"G0", "G1", "G2", "G3", "G92", "G28", "M17","M18", "M203", "M201" };
-const StringType CommandParser::validCommandsWoutParams[] = {"G90", "G91", "M502", "M114", "M119"};
 
 // Constructor
 CommandParser::CommandParser() {}
