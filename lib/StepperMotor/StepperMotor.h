@@ -1,4 +1,7 @@
 #include <Arduino.h>
+#ifndef STEPPERMOTOR_H  // Prevent multiple inclusion
+#define STEPPERMOTOR_H
+
 class StepperMotor {
 public:
     // Constructor
@@ -7,7 +10,7 @@ public:
     // Core methods
     void setSpeed(float speed);
     void step(bool state); // takes a half step. with no delay
-    void step(int step_delay); // takes a single step and updates step delay.
+    void SingleStep(int step_delay); // takes a single step and updates step delay.
     void MultiStep(int steps); // steps n steps 
     void setDirection(bool dir);
     bool getDirection();
@@ -44,4 +47,7 @@ private:
     int _currentPosition; // Tracks current position
     bool _isEnabled;   // Tracks enable state
     bool _direction;   // Current direction
+    bool _isMoving;    // Tracks movement state
 };
+
+#endif

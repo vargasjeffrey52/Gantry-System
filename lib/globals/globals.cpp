@@ -8,9 +8,14 @@ Parser::g_code_command GCODE;
 const StringType validCommandsWParams[NUM_VALID_COMMANDS_W_PARAMS] = {"G0", "G1", "G2", "G3", "G92", "G28", "M17", "M18", "M203", "M201"};
 const StringType validCommandsWoutParams[NUM_VALID_COMMANDS_WO_PARAMS] = {"G90", "G91", "M502", "M114", "M119"};
 
+int CURRENT_UNIT = 0;  // -1 for steps 0 for mm and 1 for inches
+float STEPS_PER_MM = 1600; // TODO: update this value once you know what 
+//float STEPS_PER_MM = 1; // TODO: update this value once you know what 
+float STEPS_PER_INCH = 2032; // TODO: update this value once you know how many steps per inches
 
 int HEAD = 0, TAIL = 0, Gcode_BUFFER_SIZE = 0;
-float Xcurrent = 0, Ycurrent = 0, jcurrent, icurrent, rcurrent;
+float Xcurrent = 0, Ycurrent = 0, jcurrent=0, icurrent=0, rcurrent=0;
+float FEEDRATE = 1000, ACCELERATION = 100; // TODO: currently assuming units of mm/s and mm/s^2 must change to account for inches.
 
 // Add g-code to the queue for later processing
 void enqueue_gcode(Parser::g_code_command gcode) {

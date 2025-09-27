@@ -1,5 +1,9 @@
+#ifndef MOTIONCONTROL_H
+#define MOTIONCONTROL_H
+
 #include "StepperMotor.h"
 #include <ctype.h> // Include the ctype library for character functions
+#include "globals.h"
 
 class MotionControl {
 public:
@@ -8,8 +12,14 @@ public:
 
     // Core Methods
     void moveNsteps(int n, char axis);
-    void moveLine(int x0, int y0, int x1, int y1);
-    void moveTo(float x, float y);
+    //
+    
+    
+    //void moveLine(int x0, int y0, int x1, int y1);
+    void moveLine(float x0, float y0, float x1, float y1, float resolution);
+    void moveLine(float x0, float y0, float x1, float y1);
+    //void moveTo(float x, float y);
+    void moveTo(int x0, int x1, int y0, int y1, int dt);
     void moveBy(float dx, float dy);
     void moveArc(float centerX, float centerY, float radius, float startAngle, float endAngle, bool clockwise);
     void home();
@@ -33,6 +43,10 @@ public:
     void printStatus();
 
 private:
+    void moveHline (float x0, float y0, float x1, float y1);
+    void moveVline (float x0, float y0, float x1, float y1);
+    void moveVline (float x0, float y0, float x1, float y1,  float resolution);
+    int convertToSteps(float x);
     StepperMotor& _motorX;
     StepperMotor& _motorY1;
     StepperMotor& _motorY2;
@@ -44,7 +58,8 @@ private:
     float _acceleration;
 
     float _maxX;
-    float _maxY;
-
     bool _isHomed;
 };
+
+#endif // MOTIONCONTROL_H
+

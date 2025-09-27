@@ -1,6 +1,17 @@
 #include "Processor.h"
+#include "Parser.h"
 #include "globals.h"
+#include "MotionControl.h"
 
+Processor::Processor()
+    : motorX(STEPX, DIRX, ENAX, MS1X, MS2X),
+      motorY1(STEPY, DIRY, ENAY1, MS1X, MS2X),
+      motorY2(STEPY, DIRY, ENAY2, MS1X, MS2X),
+      M_Control(motorX, motorY1, motorY2) // Properly initializes M_Control
+{
+    Serial.println("PROCESSOR INIT");
+
+}
 
 
 void Processor::send_to_parser(String command){
@@ -71,14 +82,31 @@ bool Processor::is_getter_command(Parser::g_code_command gcode){
 
 void Processor::send_to_motion_control(Parser::g_code_command gcode){
     // do something
+    Serial.println();
     Serial.println("Sending to motion control ##############");
+    float x0 = 0, y0 = 0;
+    Serial.print(gcode.X);
+    Serial.print(",");
+    Serial.println(gcode.Y);
+    Serial.println();
+    if (gcode.F != MIN_INT){
+        FEEDRATE = gcode.F;
+    }
+    M_Control.moveLine(x0,y0, gcode.X,gcode.Y);
+
+    Serial.println();
+
 }
 
 void Processor::send_to_modifier(Parser::g_code_command gcode){
     // do something
+    Serial.println();
     Serial.println("Sending to modifier ##############");
+    Serial.println();
 }
 void Processor::send_to_getter(Parser::g_code_command gcode){
     // do something
+    Serial.println();
     Serial.println("Sending to getter ##############");
+    Serial.println();
 }

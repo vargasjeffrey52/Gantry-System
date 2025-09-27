@@ -2,13 +2,21 @@
 
 //Constructor for instance of a stepper motor
 StepperMotor::StepperMotor(int stepPin, int dirPin, int enPin, int ms1, int ms2){
-    StepperMotor::_stepPin = stepPin;
-    StepperMotor::_dirPin = dirPin;
-    StepperMotor::_enPin = enPin;
-    StepperMotor::_ms1 = ms1;
-    StepperMotor::_ms2 = ms2;
-    StepperMotor::_stepDelay = 100; // 100 us delay between step (default)
-    StepperMotor::setStepMode(8); // Default set 1/8 microstep by default.
+    Serial.println("STEPPER CONSTRUCTOR");
+    Serial.println("EN: " + String(enPin) + ", " + "dir: " + String(dirPin) + " step: " + String(stepPin) );
+    _stepPin = stepPin;
+    _dirPin = dirPin;
+    _enPin = enPin;
+    _ms1 = ms1;
+    _ms2 = ms2;
+    _stepDelay = 100; // 100 us delay between step (default)
+    pinMode(enPin, OUTPUT);
+    pinMode(stepPin, OUTPUT);
+    pinMode(dirPin, OUTPUT);
+    pinMode(ms1, OUTPUT);
+    pinMode(ms2, OUTPUT);
+    setStepMode(8); // Default set 1/8 microstep by default.
+    disable();
 }
 
 //TODO: Implement speed control
@@ -29,13 +37,12 @@ void StepperMotor::step(bool state){
     
 
 }
-void StepperMotor::step(int step_delay){
-    StepperMotor::setStepDelay(step_delay);
-
+void StepperMotor::SingleStep(int step_delay){
+    enable();
     digitalWrite(StepperMotor::_stepPin, HIGH);
-    delayMicroseconds(StepperMotor::_stepDelay);
+    delayMicroseconds(step_delay);
     digitalWrite(StepperMotor::_stepPin, LOW);
-    delayMicroseconds(StepperMotor::_stepDelay);
+    delayMicroseconds(step_delay);
 
 
 }
@@ -113,10 +120,12 @@ void StepperMotor::setStepDelay(float delay){
 //TODO: Implement Diagnostics and state tracking
 //TODO: Implement isMoving()
 bool StepperMotor::isMoving(){
-    return StepperMotor::isMoving;
+    return _isMoving;
 }
 //TODO: Implement getCurrentPosition
-int StepperMotor::getCurrentPosition(){}
+int StepperMotor::getCurrentPosition(){
+    return 0;
+}
 //TODO: Implement resetPosition
 void StepperMotor::resetPosition(){}
 
@@ -140,7 +149,7 @@ void StepperMotor::stop(){
 
 // Helper methods
 bool StepperMotor::isEnabled(){
-    return StepperMotor::isEnabled;
+    return _isEnabled;
 }
 
 void invertDirection(bool invert);
