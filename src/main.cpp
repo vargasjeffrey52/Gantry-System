@@ -28,13 +28,20 @@ void setup() {
     // }
     // digitalWrite(ENAX, LOW);
     // Serial.println("DONE MOVING");
+    delay(1000);
+    Serial.println("Setup complete");
     
 }
 
 void loop() {
     if (Serial.available()) {
         String command = Serial.readStringUntil('\n');
-        processor->send_to_parser(command);
+        // only dequeue and dispatch when the parser actually queued a command;
+        // on bad input the parser has already printed the error
+        Serial.println("Received command: " + command);
+        if (!processor->send_to_parser(command)) {
+            return;
+        }
         Parser::g_code_command gcode = dequeue_gcode();
         if (processor->is_movement_command(gcode)) {
             processor->send_to_motion_control(gcode);
@@ -48,6 +55,5 @@ void loop() {
 
     }
 }
-
 
 

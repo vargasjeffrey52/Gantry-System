@@ -8,8 +8,8 @@ Parser::g_code_command GCODE;
 const StringType validCommandsWParams[NUM_VALID_COMMANDS_W_PARAMS] = {"G0", "G1", "G2", "G3", "G92", "G28", "M17", "M18", "M203", "M201"};
 const StringType validCommandsWoutParams[NUM_VALID_COMMANDS_WO_PARAMS] = {"G90", "G91", "M502", "M114", "M119"};
 
-int CURRENT_UNIT = 0;  // -1 for steps 0 for mm and 1 for inches
-float STEPS_PER_MM = 1600; // TODO: update this value once you know what 
+int CURRENT_UNIT = 0;  // set current unit to -1 for steps 0 for mm and 1 for inches
+float STEPS_PER_MM = 60; // TODO: update this value once you know what 
 //float STEPS_PER_MM = 1; // TODO: update this value once you know what 
 float STEPS_PER_INCH = 2032; // TODO: update this value once you know how many steps per inches
 
@@ -36,6 +36,12 @@ Parser::g_code_command dequeue_gcode() {
     TAIL = (TAIL + 1) % NUMBER_OF_GCODES;
     Gcode_BUFFER_SIZE--;
     return gcode;
+}
+
+float stepsPerUnit() {
+    if (CURRENT_UNIT == 0) return STEPS_PER_MM;    // mm
+    if (CURRENT_UNIT == 1) return STEPS_PER_INCH;  // inches
+    return 1.0;                                    // steps
 }
 
 void print_Gcode_object(Parser::g_code_command gcode) {

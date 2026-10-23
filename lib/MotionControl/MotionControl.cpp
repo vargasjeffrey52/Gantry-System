@@ -3,10 +3,9 @@
 #include <ctype.h> // Include the ctype library for character functions
 #include "globals.h"
 
-MotionControl::MotionControl(StepperMotor& motorX, StepperMotor& motorY1, StepperMotor& motorY2)
- :  _motorX(motorX),   // Initialize _motorX with motorX
-    _motorY1(motorY1), // Initialize _motorY1 with motorY1
-    _motorY2(motorY2)  // Initialize _motorY2 with motorY2
+MotionControl::MotionControl(StepperMotor& motorX, StepperMotor& motorY1)
+ :  _motorX(motorX),
+    _motorY1(motorY1)
 {
   
 }
@@ -29,13 +28,10 @@ void MotionControl::moveNsteps(int n, char axis){
         _motorX.delayStep();
     } else if( axis == 'Y'){
         _motorY1.setDirection(dir);
-        _motorY2.setDirection(dir);
         _motorY1.step(true);
-        _motorY2.step(true);
         _motorY1.delayStep();
 
         _motorY1.step(false);
-        _motorY2.step(false);
         _motorY1.delayStep();
 
     }
@@ -45,14 +41,13 @@ void MotionControl::moveNsteps(int n, char axis){
 
 /*
 */
-void MotionControl::moveLine(float x0, float y0, float x1, float y1){
-    if (abs(x1 - x0) > abs(y1 - y0)){
-        moveHline(x0, y0, x1, y1);
+void MotionControl::moveLine(float x0, float y0, float x1, float y1, float feedrate){
+    if (fabs(x1 - x0) > fabs(y1 - y0)){
+        moveHline(x0, y0, x1, y1, feedrate);
     } else{
-        moveVline(x0, y0, x1, y1);
+        moveVline(x0, y0, x1, y1, feedrate);
     }
-
-} 
+}
 
 
 
@@ -73,12 +68,11 @@ void MotionControl::moveTo(int x0, int x1, int y0, int y1, int dt){
 
 
 // x0 , y0, x1 and y1 are in units of mm or inches. 
-void MotionControl::moveHline (float x0, float y0, float x1, float y1){
+void MotionControl::moveHline (float x0, float y0, float x1, float y1,float feedrate){
     _motorX.setDirection(x0<x1);
     _motorY1.setDirection(y0<y1);
     _motorX.enable();
     _motorY1.enable();
-    _motorY2.enable();
 
 
     //TODO: Will first configure this to work in units of mm. ill figure out how to make it work with inches later
@@ -90,7 +84,7 @@ void MotionControl::moveHline (float x0, float y0, float x1, float y1){
     long y_0 = convertToSteps(y0);
     long y_1 = convertToSteps(y1);
     //TODO: currently assuming FEEDRATE is in units of mm/min and converting to steps per/sec (need to fix for inch/sec)
-    double Vmax  = (FEEDRATE/60.0) * STEPS_PER_MM;
+    double Vmax  = (feedrate/60.0) * STEPS_PER_MM;
     //Vmax = 100;
 
     // figure out acceleration distance to reach vmax and deceleration from vmax to 0
@@ -175,12 +169,11 @@ void MotionControl::moveHline (float x0, float y0, float x1, float y1){
 
 
 // x0 , y0, x1 and y1 are in units of mm or inches. 
-void MotionControl::moveVline (float x0, float y0, float x1, float y1){
+void MotionControl::moveVline (float x0, float y0, float x1, float y1, float feedrate){
     _motorX.setDirection(x0<x1);
     _motorY1.setDirection(y0<y1);
     _motorX.enable();
     _motorY1.enable();
-    _motorY2.enable();
 
     //TODO: Will first configure this to work in units of mm. ill figure out how to make it work with inches later
     // convert all values to units of steps before interpolating velocity and distances. 
@@ -191,7 +184,7 @@ void MotionControl::moveVline (float x0, float y0, float x1, float y1){
     long y_0 = convertToSteps(y0);
     long y_1 = convertToSteps(y1);
     //TODO: currently assuming FEEDRATE is in units of mm/min and converting to steps per/sec (need to fix for inch/sec)
-    double Vmax  = (FEEDRATE/60.0) * STEPS_PER_MM;
+    double Vmax  = (feedrate/60.0) * STEPS_PER_MM;
     //Vmax = 100;
 
     // figure out acceleration distance to reach vmax and deceleration from vmax to 0

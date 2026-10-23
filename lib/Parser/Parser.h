@@ -70,7 +70,7 @@ extern Parser PARSER;
 
 // Expose function for Python testing (PC only)
 #ifndef ARDUINO
-extern "C" {+
+extern "C" {
     EXPORT const char* parse_command(const char* command);
 }
 #endif

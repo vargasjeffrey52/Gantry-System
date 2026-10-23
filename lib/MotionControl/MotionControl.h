@@ -8,7 +8,7 @@
 class MotionControl {
 public:
     // Constructor
-    MotionControl(StepperMotor& motorX, StepperMotor& motorY1, StepperMotor& motorY2);
+    MotionControl(StepperMotor& motorX, StepperMotor& motorY1);
 
     // Core Methods
     void moveNsteps(int n, char axis);
@@ -16,8 +16,7 @@ public:
     
     
     //void moveLine(int x0, int y0, int x1, int y1);
-    void moveLine(float x0, float y0, float x1, float y1, float resolution);
-    void moveLine(float x0, float y0, float x1, float y1);
+    void moveLine(float x0, float y0, float x1, float y1, float feedrate);
     //void moveTo(float x, float y);
     void moveTo(int x0, int x1, int y0, int y1, int dt);
     void moveBy(float dx, float dy);
@@ -43,13 +42,11 @@ public:
     void printStatus();
 
 private:
-    void moveHline (float x0, float y0, float x1, float y1);
-    void moveVline (float x0, float y0, float x1, float y1);
-    void moveVline (float x0, float y0, float x1, float y1,  float resolution);
+    void moveHline (float x0, float y0, float x1, float y1, float feedrate);
+    void moveVline (float x0, float y0, float x1, float y1, float feedrate);
     int convertToSteps(float x);
     StepperMotor& _motorX;
     StepperMotor& _motorY1;
-    StepperMotor& _motorY2;
 
     float _currentX;
     float _currentY;
@@ -62,4 +59,3 @@ private:
 };
 
 #endif // MOTIONCONTROL_H
-

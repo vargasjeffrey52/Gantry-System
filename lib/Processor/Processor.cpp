@@ -6,15 +6,12 @@
 Processor::Processor()
     : motorX(STEPX, DIRX, ENAX, MS1X, MS2X),
       motorY1(STEPY, DIRY, ENAY1, MS1X, MS2X),
-      motorY2(STEPY, DIRY, ENAY2, MS1X, MS2X),
-      M_Control(motorX, motorY1, motorY2) // Properly initializes M_Control
+      M_Control(motorX, motorY1)
 {
     Serial.println("PROCESSOR INIT");
-
 }
 
-
-void Processor::send_to_parser(String command){
+bool Processor::send_to_parser(String command){
     int size = PARSER.command_to_arr(command, ' ', commandsArr);
         // Serial.print("Size of array: "); // debugging
         // Serial.println(size); // debugging
@@ -32,27 +29,38 @@ void Processor::send_to_parser(String command){
                     // Serial.println(PARSER.getSystemMessage()); // debugging
                     //gcode = parser.create_gcode_object(commandsArr, size);
                     GCODE = PARSER.create_gcode_object(commandsArr, size);
-                    print_Gcode_object(GCODE); 
-                    enqueue_gcode(GCODE);                
+                    //print_Gcode_object(GCODE); 
+                    enqueue_gcode(GCODE);
+                    return true;
                     
                     
                 }
                 // bad values on params
                 else {
                     Serial.println(PARSER.getSystemMessage()); // debugging
+                    return false;
                 }
             } 
             // command does not require parameters
             else {
-                Serial.println(PARSER.getSystemMessage()); // debugging
+                if (size > 1){
+                    Serial.println("Error: " + commandsArr[0] + " does not take parameters");
+                    //Serial.println(PARSER.getSystemMessage()); // debugging
+                    return false;
+                }
+                GCODE = PARSER.create_gcode_object(commandsArr, size);
+                //print_Gcode_object(GCODE);
+                enqueue_gcode(GCODE);
+                return true;
             }
         }
         // bad main command
         else {
             Serial.println(PARSER.getSystemMessage()); // debugging
-            Serial.println();
-            Serial.println("The following G-code commands was dequeued: ");
-            print_Gcode_object(dequeue_gcode());
+            // Serial.println();
+            // Serial.println("The following G-code commands was dequeued: ");
+            // print_Gcode_object(dequeue_gcode());
+            return false;
             
         }
 
@@ -82,20 +90,23 @@ bool Processor::is_getter_command(Parser::g_code_command gcode){
 
 void Processor::send_to_motion_control(Parser::g_code_command gcode){
     // do something
-    Serial.println();
-    Serial.println("Sending to motion control ##############");
     float x0 = 0, y0 = 0;
-    Serial.print(gcode.X);
-    Serial.print(",");
-    Serial.println(gcode.Y);
-    Serial.println();
-    if (gcode.F != MIN_INT){
-        FEEDRATE = gcode.F;
+    String cmd = gcode.main_command;
+
+    if (cmd == "G2" || cmd == "G3") {
+        Serial.println("Error: arcs (G2/G3) are not implemented yet");
+        return;
     }
-    M_Control.moveLine(x0,y0, gcode.X,gcode.Y);
 
-    Serial.println();
+    if (gcode.F != MIN_INT){
+        FEEDRATE = gcode.F * stepsPerUnit() / STEPS_PER_MM;
+    }
 
+    float feed = (cmd == "G0") ? MAX_FEEDRATE_MM : FEEDRATE;
+    float x1 = (gcode.X != MIN_INT) ? gcode.X : x0;
+    float y1 = (gcode.Y != MIN_INT) ? gcode.Y : y0;
+
+    M_Control.moveLine(x0, y0, x1, y1, feed);
 }
 
 void Processor::send_to_modifier(Parser::g_code_command gcode){

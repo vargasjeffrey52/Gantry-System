@@ -5,18 +5,22 @@
 #include "Parser.h" // Ensure Parser is defined before using it
 
 
-#define ENAX 3
-#define DIRX 7
-#define STEPX 9
-#define MS1X 10
-#define MS2X 10
+#define ENAX 1
+#define DIRX 40
+#define STEPX 41
+#define MS1X 2
+#define MS2X 42
+// #define ENAX 3
+// #define DIRX 7
+// #define STEPX 9
+// #define MS1X 10
+// #define MS2X 10
 
-#define ENAY1 4
-#define ENAY2 5
-#define DIRY 6
-#define STEPY 8
-#define MS1Y 10
-#define MS2Y 10
+#define ENAY1 39
+#define DIRY 21
+#define STEPY 47
+#define MS1Y 38
+#define MS2Y 14
 
 
 
@@ -25,7 +29,7 @@
 // int must match number of params in  {"G0", "G1", "G2", "G3", "G92", "G28", "M17", "M18", "M203", "M201"} in globals.cpp
 #define NUM_VALID_COMMANDS_WO_PARAMS 5 // similar to top
 #define MIN_INT -32768 // used as NAN 
-#define MAX_FEEDRATE_MM 5000.0 // mm/min
+#define MAX_FEEDRATE_MM 1800.0 // mm/min
 #define MAX_FEEDRATE_IN 196.85 // in/min
 
 
@@ -49,6 +53,9 @@ extern void enqueue_gcode(Parser::g_code_command gcode);
 extern Parser::g_code_command dequeue_gcode();
 
 extern void print_Gcode_object(Parser::g_code_command gcode);
+
+// steps per 1 unit in the current unit mode (mm, inch, or step)
+extern float stepsPerUnit();
 
 // Global movement variables
 extern float Xcurrent, Ycurrent, FEEDRATE, icurrent, jcurrent, rcurrent, ACCELERATION;
