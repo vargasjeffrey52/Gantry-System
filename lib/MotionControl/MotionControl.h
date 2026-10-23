@@ -2,13 +2,14 @@
 #define MOTIONCONTROL_H
 
 #include "StepperMotor.h"
+#include "SoundManager.h"
 #include <ctype.h> // Include the ctype library for character functions
 #include "globals.h"
 
 class MotionControl {
 public:
     // Constructor
-    MotionControl(StepperMotor& motorX, StepperMotor& motorY1);
+    MotionControl(StepperMotor& motorX, StepperMotor& motorY1, SoundManager& soundManager);
 
     // Core Methods
     void moveNsteps(int n, char axis);
@@ -18,7 +19,7 @@ public:
     //void moveLine(int x0, int y0, int x1, int y1);
     void moveLine(float x0, float y0, float x1, float y1, float feedrate);
     //void moveTo(float x, float y);
-    void moveTo(int x0, int x1, int y0, int y1, int dt);
+    void moveTo(int x0, int x1, int y0, int y1, int dt, float speedRatio);
     void moveBy(float dx, float dy);
     void moveArc(float centerX, float centerY, float radius, float startAngle, float endAngle, bool clockwise);
     void home();
@@ -47,6 +48,7 @@ private:
     int convertToSteps(float x);
     StepperMotor& _motorX;
     StepperMotor& _motorY1;
+    SoundManager& _soundManager;
 
     float _currentX;
     float _currentY;

@@ -39,7 +39,7 @@ public:
 
     struct g_code_command {
         String main_command;  // Main command Ex. G0, G1, G2, G3, ...
-        double X, Y, F, I, J, R;
+        double X, Y, F, I, J, R, S;
         static constexpr int MIN_INT = -32768;  // Use static constexpr for better portability
 
         // Constructor that ensures proper initialization of default values
@@ -52,6 +52,7 @@ public:
             I = MIN_INT;
             J = MIN_INT;
             R = MIN_INT;
+            S = MIN_INT;
         }
     };
 

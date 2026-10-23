@@ -2,25 +2,30 @@
 #include "Parser.h"
 #include "globals.h"
 #include "MotionControl.h"
+#include "SoundManager.h"
 
 class Processor {
 public:
     //Processor() = default;
     Processor();
+    void begin();
+    void update();
     bool is_movement_command(Parser::g_code_command gcode);
     bool is_modifier_command(Parser::g_code_command gcode);
     bool is_getter_command(Parser::g_code_command gcode);
+    bool is_sound_command(Parser::g_code_command gcode);
 
     bool send_to_parser(String command);
     void send_to_motion_control(Parser::g_code_command gcode);
     void send_to_modifier(Parser::g_code_command gcode);
     void send_to_getter(Parser::g_code_command gcode);
+    void send_to_sound_manager(Parser::g_code_command gcode);
 
 
 private:
     String commandsArr[10]; // size of array for parsing G-code string command
     StepperMotor motorX;
     StepperMotor motorY1;
-    
+    SoundManager soundManager;
     MotionControl M_Control;
 };

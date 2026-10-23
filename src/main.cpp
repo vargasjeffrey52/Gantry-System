@@ -29,11 +29,13 @@ void setup() {
     // digitalWrite(ENAX, LOW);
     // Serial.println("DONE MOVING");
     delay(1000);
+    processor->begin();
     Serial.println("Setup complete");
     
 }
 
 void loop() {
+    processor->update();
     if (Serial.available()) {
         String command = Serial.readStringUntil('\n');
         // only dequeue and dispatch when the parser actually queued a command;
@@ -45,6 +47,8 @@ void loop() {
         Parser::g_code_command gcode = dequeue_gcode();
         if (processor->is_movement_command(gcode)) {
             processor->send_to_motion_control(gcode);
+        } else if (processor->is_sound_command(gcode)) {
+            processor->send_to_sound_manager(gcode);
         } else if (processor->is_modifier_command(gcode)) {
             processor->send_to_modifier(gcode);
         } else if (processor->is_getter_command(gcode)) {
@@ -55,5 +59,4 @@ void loop() {
 
     }
 }
-
 

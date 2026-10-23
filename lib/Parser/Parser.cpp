@@ -76,7 +76,7 @@ bool Parser::validate_params_with_values(const StringType* cmd_Array, int size) 
     // itterate through each param and check if it is valid
     for (int i = 1; i < size; i++) {
         // check first character of param
-        if (cmd_Array[i][0] == 'X' || cmd_Array[i][0] == 'Y' || cmd_Array[i][0] == 'Z' || cmd_Array[i][0] == 'F' || cmd_Array[i][0] == 'I' || cmd_Array[i][0] == 'J' || cmd_Array[i][0] == 'R') {
+        if (cmd_Array[i][0] == 'X' || cmd_Array[i][0] == 'Y' || cmd_Array[i][0] == 'Z' || cmd_Array[i][0] == 'F' || cmd_Array[i][0] == 'I' || cmd_Array[i][0] == 'J' || cmd_Array[i][0] == 'R' || cmd_Array[i][0] == 'S') {
             // if its a valid param but no value is given then do nothing default value will be given when create_goce_object is called
             if (cmd_Array[i].length() < 2) {
                 // empty value could apply to commands such as M17 where no value is needed to enable motor
@@ -135,6 +135,8 @@ Parser::g_code_command Parser::create_gcode_object(const StringType* cmd_Array, 
                     gcode.J = cmd_Array[i].substring(1).toDouble();
                 } else if (cmd_Array[i][0] == 'R') {
                     gcode.R = cmd_Array[i].substring(1).toDouble();
+                } else if (cmd_Array[i][0] == 'S') {
+                    gcode.S = cmd_Array[i].substring(1).toDouble();
                 }
             }
         }

@@ -3,9 +3,10 @@
 #include <ctype.h> // Include the ctype library for character functions
 #include "globals.h"
 
-MotionControl::MotionControl(StepperMotor& motorX, StepperMotor& motorY1)
+MotionControl::MotionControl(StepperMotor& motorX, StepperMotor& motorY1, SoundManager& soundManager)
  :  _motorX(motorX),
-    _motorY1(motorY1)
+    _motorY1(motorY1),
+    _soundManager(soundManager)
 {
   
 }
@@ -18,6 +19,7 @@ void MotionControl::moveNsteps(int n, char axis){
 
     axis = toupper(axis);
     for (int i=0; i < abs(n); i++) {
+    _soundManager.updateStepSound(1.0f);
     if (axis == 'X'){
         // a transition from true to false is a step
         _motorX.setDirection(dir);
@@ -33,9 +35,10 @@ void MotionControl::moveNsteps(int n, char axis){
 
         _motorY1.step(false);
         _motorY1.delayStep();
-
     }
+    _soundManager.update();
 }
+    _soundManager.finishStepSound();
 
 }
 
@@ -55,14 +58,16 @@ void MotionControl::moveLine(float x0, float y0, float x1, float y1, float feedr
 // void MotionControl::moveTo(float x, float y){
     
 // }
-void MotionControl::moveTo(int x0, int x1, int y0, int y1, int dt){
+void MotionControl::moveTo(int x0, int x1, int y0, int y1, int dt, float speedRatio){
     //TODO: need a to call on stepperMotor.cpp to move a single step at a time.
+    _soundManager.updateStepSound(speedRatio);
     if (x0 != x1){
         _motorX.SingleStep(dt);
     }
     if (y0 != y1){
         _motorY1.SingleStep(dt);
     }
+    _soundManager.update();
 }
 
 
@@ -151,7 +156,7 @@ void MotionControl::moveHline (float x0, float y0, float x1, float y1,float feed
             long dt = round((1e6/vi));
             // Serial.println("(" + String(i)+ ", " + String(y) +", " + String(dt) +")"); // printing each stept to check if it correctly generates a line.
 
-            moveTo(x_0, x_0 + i, yPrev, y, dt); // move x first
+            moveTo(x_0, x_0 + i, yPrev, y, dt, (Vmax > 0) ? vi / Vmax : 0);
             yPrev = y;
             if (D >= 0){
                 y += dir;
@@ -162,6 +167,7 @@ void MotionControl::moveHline (float x0, float y0, float x1, float y1,float feed
         }
 
     }
+    _soundManager.finishStepSound();
     _motorX.disable();
     _motorY1.disable();
 
@@ -248,7 +254,7 @@ void MotionControl::moveVline (float x0, float y0, float x1, float y1, float fee
             long dt = round((1e6/vi));
             // Serial.println("(" + String(x)+ ", " + String(i) +", " + String(dt) +")"); // printing each stept to check if it correctly generates a line.
 
-            moveTo(xPrev, x, y_0, y_0 + i, dt); // move x first
+            moveTo(xPrev, x, y_0, y_0 + i, dt, (Vmax > 0) ? vi / Vmax : 0);
             xPrev = x;
             if (D >= 0){
                 x += dir;
@@ -259,6 +265,7 @@ void MotionControl::moveVline (float x0, float y0, float x1, float y1, float fee
         }
 
     }
+    _soundManager.finishStepSound();
     _motorX.disable();
     _motorY1.disable();
 

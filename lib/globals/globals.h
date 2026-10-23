@@ -21,13 +21,13 @@
 #define STEPY 47
 #define MS1Y 38
 #define MS2Y 14
+#define BUZZER_PIN 4
 
 
 
 #define NUMBER_OF_GCODES 3 // number of g-codes that will be allowed in buffer
-#define NUM_VALID_COMMANDS_W_PARAMS 10 // number of g-code commands that will require parameters
-// int must match number of params in  {"G0", "G1", "G2", "G3", "G92", "G28", "M17", "M18", "M203", "M201"} in globals.cpp
-#define NUM_VALID_COMMANDS_WO_PARAMS 5 // similar to top
+#define NUM_VALID_COMMANDS_W_PARAMS 13 // movement/configuration commands plus sound commands
+#define NUM_VALID_COMMANDS_WO_PARAMS 5 // number of commands that take no parameters
 #define MIN_INT -32768 // used as NAN 
 #define MAX_FEEDRATE_MM 1800.0 // mm/min
 #define MAX_FEEDRATE_IN 196.85 // in/min
