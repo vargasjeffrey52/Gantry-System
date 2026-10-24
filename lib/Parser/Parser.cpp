@@ -120,6 +120,16 @@ Parser::g_code_command Parser::create_gcode_object(const StringType* cmd_Array, 
     if (size < 1) return gcode;
     if(size > 1) {
         for (int i = 1; i < size; i++) {
+            if (cmd_Array[i].length() > 0) {
+                if (cmd_Array[i][0] == 'X') {
+                    gcode.axisMask |= g_code_command::AXIS_X;
+                } else if (cmd_Array[i][0] == 'Y') {
+                    gcode.axisMask |= g_code_command::AXIS_Y;
+                } else if (cmd_Array[i][0] == 'Z') {
+                    gcode.axisMask |= g_code_command::AXIS_Z;
+                }
+            }
+
             // only update params that have values i.e. string length > 1
             if (cmd_Array[i].length() > 1){
                 // check first character of param and update value

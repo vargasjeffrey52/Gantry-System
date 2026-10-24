@@ -22,8 +22,9 @@ public:
     void moveLine(float x0, float y0, float x1, float y1, float feedrate);
     //void moveTo(float x, float y);
     void moveTo(int x0, int x1, int y0, int y1, int dt, float speedRatio);
+    bool moveArc(float startX, float startY, float endX, float endY,
+                 float centerX, float centerY, float feedrate, bool clockwise);
     void moveBy(float dx, float dy);
-    void moveArc(float centerX, float centerY, float radius, float startAngle, float endAngle, bool clockwise);
     void home();
 
     // Movement Utilities

@@ -1,7 +1,14 @@
 #include <Arduino.h>
 #include "MotionControl.h"
 #include <ctype.h> // Include the ctype library for character functions
+#include <math.h>
+#include <limits.h>
 #include "globals.h"
+
+namespace {
+constexpr double ARC_PI = 3.14159265358979323846;
+constexpr uint32_t MAX_ARC_SAMPLES = 1000000;
+}
 
 MotionControl::MotionControl(StepperMotor& motorX, StepperMotor& motorY1,
                              SoundManager& soundManager, RgbStatus& rgbStatus)
@@ -72,6 +79,94 @@ void MotionControl::moveTo(int x0, int x1, int y0, int y1, int dt, float speedRa
     }
     _soundManager.update();
     _rgbStatus.update();
+}
+
+bool MotionControl::moveArc(float startX, float startY, float endX, float endY,
+                            float centerX, float centerY, float feedrate, bool clockwise) {
+    const double radius = hypot(startX - centerX, startY - centerY);
+    if (!isfinite(radius) || radius <= 0 || !isfinite(feedrate) ||
+        feedrate <= 0 || !isfinite(ACCELERATION) || ACCELERATION <= 0) {
+        return false;
+    }
+
+    const double startAngle = atan2(startY - centerY, startX - centerX);
+    const double endAngle = atan2(endY - centerY, endX - centerX);
+    double sweep = clockwise ? startAngle - endAngle : endAngle - startAngle;
+    while (sweep < 0) {
+        sweep += 2 * ARC_PI;
+    }
+    if (sweep < 1e-9) {
+        sweep = 2 * ARC_PI;
+    }
+
+    const double pathLengthSteps = radius * sweep * stepsPerUnit();
+    const double requestedMaxSpeed = (feedrate / 60.0) * STEPS_PER_MM;
+    const double acceleration = ACCELERATION * STEPS_PER_MM;
+    const double sampleCountValue = ceil(pathLengthSteps * 2.0);
+    if (!isfinite(pathLengthSteps) || pathLengthSteps <= 0 ||
+        !isfinite(sampleCountValue) || sampleCountValue > MAX_ARC_SAMPLES ||
+        !isfinite(requestedMaxSpeed) || requestedMaxSpeed <= 0 ||
+        !isfinite(acceleration) || acceleration <= 0) {
+        return false;
+    }
+
+    const uint32_t sampleCount = static_cast<uint32_t>(sampleCountValue);
+    double maxSpeed = requestedMaxSpeed;
+    double accelerationDistance = (maxSpeed * maxSpeed) / (2 * acceleration);
+    if (2 * accelerationDistance > pathLengthSteps) {
+        maxSpeed = sqrt(acceleration * pathLengthSteps);
+        accelerationDistance = pathLengthSteps / 2;
+    }
+
+    int previousX = convertToSteps(startX);
+    int previousY = convertToSteps(startY);
+    const int finalX = convertToSteps(endX);
+    const int finalY = convertToSteps(endY);
+
+    _motorX.enable();
+    _motorY1.enable();
+
+    for (uint32_t sample = 1; sample <= sampleCount; ++sample) {
+        const double fraction = static_cast<double>(sample) / sampleCount;
+        const double angle = startAngle + (clockwise ? -1 : 1) * sweep * fraction;
+        const int nextX = (sample == sampleCount)
+            ? finalX
+            : convertToSteps(centerX + radius * cos(angle));
+        const int nextY = (sample == sampleCount)
+            ? finalY
+            : convertToSteps(centerY + radius * sin(angle));
+
+        if (nextX != previousX) {
+            _motorX.setDirection(nextX > previousX);
+        }
+        if (nextY != previousY) {
+            _motorY1.setDirection(nextY > previousY);
+        }
+
+        const double distance = pathLengthSteps *
+            (static_cast<double>(sample) - 0.5) / sampleCount;
+        double speed = maxSpeed;
+        if (distance < accelerationDistance) {
+            speed = sqrt(2 * acceleration * distance);
+        } else if (distance > pathLengthSteps - accelerationDistance) {
+            speed = sqrt(2 * acceleration * (pathLengthSteps - distance));
+        }
+        speed = fmax(speed, 1.0);
+
+        const double intervalUs = 1000000.0 / speed;
+        const int stepDelay = intervalUs >= INT_MAX
+            ? INT_MAX
+            : static_cast<int>(round(intervalUs));
+        moveTo(previousX, nextX, previousY, nextY,
+               (stepDelay > 0) ? stepDelay : 1,
+               static_cast<float>(speed / requestedMaxSpeed));
+
+        previousX = nextX;
+        previousY = nextY;
+    }
+
+    _soundManager.finishStepSound();
+    return true;
 }
 
 
@@ -172,8 +267,6 @@ void MotionControl::moveHline (float x0, float y0, float x1, float y1,float feed
 
     }
     _soundManager.finishStepSound();
-    _motorX.disable();
-    _motorY1.disable();
 
 }
 
@@ -270,8 +363,6 @@ void MotionControl::moveVline (float x0, float y0, float x1, float y1, float fee
 
     }
     _soundManager.finishStepSound();
-    _motorX.disable();
-    _motorY1.disable();
 
 }
 

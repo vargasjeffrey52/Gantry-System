@@ -21,6 +21,11 @@
 #define STEPY 47
 #define MS1Y 38
 #define MS2Y 14
+#define ENAZ 9
+#define MS1Z 10
+#define MS2Z 11
+#define STEPZ 12
+#define DIRZ 13
 #define BUZZER_PIN 4
 #define RGB_LED_PIN 48
 

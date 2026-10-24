@@ -32,6 +32,7 @@ private:
     String commandsArr[10]; // size of array for parsing G-code string command
     StepperMotor motorX;
     StepperMotor motorY1;
+    StepperMotor motorZ;
     SoundManager soundManager;
     RgbStatus rgbStatus;
     MotionControl M_Control;
@@ -39,4 +40,5 @@ private:
     uint32_t _lastSerialActivityAt;
     bool _standbyActive;
     bool _standbyMelodyStarted;
+    bool _absolutePositioning;
 };
