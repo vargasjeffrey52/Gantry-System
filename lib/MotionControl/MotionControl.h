@@ -3,13 +3,15 @@
 
 #include "StepperMotor.h"
 #include "SoundManager.h"
+#include "RgbStatus.h"
 #include <ctype.h> // Include the ctype library for character functions
 #include "globals.h"
 
 class MotionControl {
 public:
     // Constructor
-    MotionControl(StepperMotor& motorX, StepperMotor& motorY1, SoundManager& soundManager);
+    MotionControl(StepperMotor& motorX, StepperMotor& motorY1,
+                  SoundManager& soundManager, RgbStatus& rgbStatus);
 
     // Core Methods
     void moveNsteps(int n, char axis);
@@ -49,6 +51,7 @@ private:
     StepperMotor& _motorX;
     StepperMotor& _motorY1;
     SoundManager& _soundManager;
+    RgbStatus& _rgbStatus;
 
     float _currentX;
     float _currentY;

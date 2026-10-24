@@ -7,7 +7,7 @@ Parser::g_code_command GCODE;
 
 const StringType validCommandsWParams[NUM_VALID_COMMANDS_W_PARAMS] = {
     "G0", "G1", "G2", "G3", "G92", "G28", "M17", "M18", "M203", "M201",
-    "M700", "M710", "M711"
+    "M700", "M710", "M711", "M712", "M720", "M721"
 };
 const StringType validCommandsWoutParams[NUM_VALID_COMMANDS_WO_PARAMS] = {"G90", "G91", "M502", "M114", "M119"};
 

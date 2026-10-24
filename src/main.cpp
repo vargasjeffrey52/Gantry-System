@@ -35,8 +35,8 @@ void setup() {
 }
 
 void loop() {
-    processor->update();
     if (Serial.available()) {
+        processor->notifySerialActivity();
         String command = Serial.readStringUntil('\n');
         // only dequeue and dispatch when the parser actually queued a command;
         // on bad input the parser has already printed the error
@@ -49,14 +49,17 @@ void loop() {
             processor->send_to_motion_control(gcode);
         } else if (processor->is_sound_command(gcode)) {
             processor->send_to_sound_manager(gcode);
+        } else if (processor->is_rgb_command(gcode)) {
+            processor->send_to_rgb_status(gcode);
         } else if (processor->is_modifier_command(gcode)) {
             processor->send_to_modifier(gcode);
         } else if (processor->is_getter_command(gcode)) {
             processor->send_to_getter(gcode);
         } else {
             Serial.println("Error: command not recognized" + gcode.main_command);
-        }   
+        }
+        processor->notifySerialActivity();
 
     }
+    processor->update();
 }
-

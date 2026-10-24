@@ -22,14 +22,15 @@
 #define MS1Y 38
 #define MS2Y 14
 #define BUZZER_PIN 4
+#define RGB_LED_PIN 48
 
 
 
 #define NUMBER_OF_GCODES 3 // number of g-codes that will be allowed in buffer
-#define NUM_VALID_COMMANDS_W_PARAMS 13 // movement/configuration commands plus sound commands
+#define NUM_VALID_COMMANDS_W_PARAMS 16 // movement, sound, and RGB commands
 #define NUM_VALID_COMMANDS_WO_PARAMS 5 // number of commands that take no parameters
 #define MIN_INT -32768 // used as NAN 
-#define MAX_FEEDRATE_MM 1800.0 // mm/min
+#define G0_DEFAULT_FEEDRATE_MM 99999.0 // mm/min, used by G0 only when F is omitted
 #define MAX_FEEDRATE_IN 196.85 // in/min
 
 

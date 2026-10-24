@@ -3,10 +3,12 @@
 #include <ctype.h> // Include the ctype library for character functions
 #include "globals.h"
 
-MotionControl::MotionControl(StepperMotor& motorX, StepperMotor& motorY1, SoundManager& soundManager)
+MotionControl::MotionControl(StepperMotor& motorX, StepperMotor& motorY1,
+                             SoundManager& soundManager, RgbStatus& rgbStatus)
  :  _motorX(motorX),
     _motorY1(motorY1),
-    _soundManager(soundManager)
+    _soundManager(soundManager),
+    _rgbStatus(rgbStatus)
 {
   
 }
@@ -37,6 +39,7 @@ void MotionControl::moveNsteps(int n, char axis){
         _motorY1.delayStep();
     }
     _soundManager.update();
+    _rgbStatus.update();
 }
     _soundManager.finishStepSound();
 
@@ -68,6 +71,7 @@ void MotionControl::moveTo(int x0, int x1, int y0, int y1, int dt, float speedRa
         _motorY1.SingleStep(dt);
     }
     _soundManager.update();
+    _rgbStatus.update();
 }
 
 

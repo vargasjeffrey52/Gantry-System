@@ -9,13 +9,19 @@ public:
 
     void begin();
     void update();
+    void stop();
     void setEnabled(bool enabled);
+    bool isEnabled() const;
     void setStepSoundEnabled(bool enabled);
+    void setVolume(uint8_t volumePercent);
+    bool isPlaying() const;
     void playStartupMelody();
     void playCompletionMelody();
     void playSingleTone();
     void playRandomTone();
     void playCrashMelody();
+    void playCustomTheme();
+    void playDeathMelody();
     void updateStepSound(float speedRatio);
     void finishStepSound();
 
@@ -30,6 +36,9 @@ private:
     void stopPlayback();
     void stopStepSound();
     void startQueuedMelody();
+    void startTone(uint16_t frequency);
+    void stopTone();
+    void applyVolume();
 
     int _buzzerPin;
     const Note* _notes;
@@ -43,6 +52,7 @@ private:
     uint32_t _stepSoundStopStartedAt;
     uint16_t _stepSoundFrequency;
     uint16_t _stepSoundStopFrequency;
+    uint8_t _volumePercent;
     Note _oneShotNote;
     bool _enabled;
     bool _stepSoundEnabled;
