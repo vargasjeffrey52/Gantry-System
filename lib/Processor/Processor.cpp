@@ -2,6 +2,7 @@
 #include "Parser.h"
 #include "globals.h"
 #include "MotionControl.h"
+#include <float.h>
 #include <math.h>
 
 namespace {
@@ -19,6 +20,48 @@ bool isRgbMCode(const String& command) {
 
 bool isMotorEnableCommand(const String& command) {
     return command == "M17" || command == "M18";
+}
+
+float stepsPerUnitFor(char axis, int unit) {
+    const float calibration = stepsPerMm(axis);
+    if (unit == -1) return 1.0f;
+    if (unit == 0) return calibration;
+    if (unit == 1) return calibration * 25.4f;
+    return 0;
+}
+
+bool setCoordinateUnit(int unit, String& error) {
+    const float oldStepsX = stepsPerUnit('X');
+    const float oldStepsY = stepsPerUnit('Y');
+    const float newStepsX = stepsPerUnitFor('X', unit);
+    const float newStepsY = stepsPerUnitFor('Y', unit);
+    const float newX = Xcurrent * oldStepsX / newStepsX;
+    const float newY = Ycurrent * oldStepsY / newStepsY;
+    const float newFeedrate = FEEDRATE * oldStepsX / newStepsX;
+    if (!isfinite(newStepsX) || newStepsX <= 0 ||
+        !isfinite(newStepsY) || newStepsY <= 0 ||
+        !isfinite(newX) || !isfinite(newY) || !isfinite(newFeedrate)) {
+        error = "Error: cannot switch units with current motion settings";
+        return false;
+    }
+
+    Xcurrent = newX;
+    Ycurrent = newY;
+    FEEDRATE = newFeedrate;
+    CURRENT_UNIT = unit;
+    ACCELERATION = fmin(MAX_ACCELERATION_X / newStepsX,
+                        MAX_ACCELERATION_Y / newStepsY);
+    return true;
+}
+
+bool validateUnitCommand(const String* parameters, int size, String& error) {
+    if (size != 2 || parameters[1].length() != 2 ||
+        parameters[1][0] != 'S' ||
+        parameters[1][1] < '0' || parameters[1][1] > '2') {
+        error = "Error: M730 requires exactly one integer S value from 0 to 2";
+        return false;
+    }
+    return true;
 }
 
 bool validateMotorAxisParameters(const String* parameters, int size, String& error) {
@@ -51,6 +94,108 @@ bool validateMotorAxisParameters(const String* parameters, int size, String& err
     return true;
 }
 
+bool validateMotionSettingParameters(const String* parameters, int size,
+                                    const String& command, String& error) {
+    uint8_t seenAxes = 0;
+    for (int i = 1; i < size; ++i) {
+        const String& parameter = parameters[i];
+        if (parameter.length() < 2) {
+            error = "Error: " + command + " axis values must be positive numbers";
+            return false;
+        }
+
+        uint8_t axis = 0;
+        if (parameter[0] == 'X') {
+            axis = Parser::g_code_command::AXIS_X;
+        } else if (parameter[0] == 'Y') {
+            axis = Parser::g_code_command::AXIS_Y;
+        } else if (parameter[0] == 'Z') {
+            axis = Parser::g_code_command::AXIS_Z;
+        } else {
+            error = "Error: " + command + " supports only X, Y, and Z";
+            return false;
+        }
+
+        bool hasDigit = false;
+        bool hasDecimalPoint = false;
+        for (unsigned int character = 1; character < parameter.length(); ++character) {
+            const char valueCharacter = parameter[character];
+            if (valueCharacter >= '0' && valueCharacter <= '9') {
+                hasDigit = true;
+            } else if (valueCharacter == '.' && !hasDecimalPoint) {
+                hasDecimalPoint = true;
+            } else {
+                error = "Error: " + command + " values must be positive numbers";
+                return false;
+            }
+        }
+        const double value = parameter.substring(1).toDouble();
+        if (!hasDigit || !isfinite(value) || value <= 0 ||
+            value > FLT_MAX || static_cast<float>(value) <= 0) {
+            error = "Error: " + command + " values must be greater than zero";
+            return false;
+        }
+
+        if (seenAxes & axis) {
+            error = "Error: duplicate axis in " + command + " command";
+            return false;
+        }
+        seenAxes |= axis;
+    }
+
+    if (seenAxes == 0) {
+        error = "Error: " + command + " requires at least one axis value";
+        return false;
+    }
+    return true;
+}
+
+bool applyMotionSettings(const Parser::g_code_command& gcode, String& error) {
+    if (gcode.main_command == "M92") {
+        if (gcode.X != MIN_INT) STEPS_PER_MM_X = gcode.X;
+        if (gcode.Y != MIN_INT) STEPS_PER_MM_Y = gcode.Y;
+        if (gcode.Z != MIN_INT) STEPS_PER_MM_Z = gcode.Z;
+        return true;
+    }
+
+    const bool isAcceleration = gcode.main_command == "M201";
+    const double x = gcode.X;
+    const double y = gcode.Y;
+    const double z = gcode.Z;
+    if ((x != MIN_INT && (!isfinite(x) || x <= 0)) ||
+        (y != MIN_INT && (!isfinite(y) || y <= 0)) ||
+        (z != MIN_INT && (!isfinite(z) || z <= 0))) {
+        error = String("Error: ") + gcode.main_command + " values must be greater than zero";
+        return false;
+    }
+
+    const float unitStepsX = stepsPerUnit('X');
+    const float unitStepsY = stepsPerUnit('Y');
+    const float unitStepsZ = stepsPerUnit('Z');
+    const double scaledX = x == MIN_INT ? x : x * unitStepsX;
+    const double scaledY = y == MIN_INT ? y : y * unitStepsY;
+    const double scaledZ = z == MIN_INT ? z : z * unitStepsZ;
+    if ((x != MIN_INT && (!isfinite(scaledX) || scaledX > FLT_MAX)) ||
+        (y != MIN_INT && (!isfinite(scaledY) || scaledY > FLT_MAX)) ||
+        (z != MIN_INT && (!isfinite(scaledZ) || scaledZ > FLT_MAX))) {
+        error = String("Error: ") + gcode.main_command + " value is out of range";
+        return false;
+    }
+
+    if (isAcceleration) {
+        if (x != MIN_INT) MAX_ACCELERATION_X = scaledX;
+        if (y != MIN_INT) MAX_ACCELERATION_Y = scaledY;
+        if (z != MIN_INT) MAX_ACCELERATION_Z = scaledZ;
+        ACCELERATION = fmin(MAX_ACCELERATION_X / unitStepsX,
+                            MAX_ACCELERATION_Y / unitStepsY);
+    } else {
+        if (x != MIN_INT) MAX_FEEDRATE_X = scaledX;
+        if (y != MIN_INT) MAX_FEEDRATE_Y = scaledY;
+        if (z != MIN_INT) MAX_FEEDRATE_Z = scaledZ;
+    }
+    return true;
+}
+
 bool isValidSArgument(const String& command, const String& parameter, double value) {
     if (parameter.length() < 2 || parameter[0] != 'S') {
         return false;
@@ -60,7 +205,6 @@ bool isValidSArgument(const String& command, const String& parameter, double val
             return false;
         }
     }
-
     if (command == "M700") {
         return value == 1 || value == 2 || value == 3 || value == 4 || value == 5 || value == 6 || value == 7;
     }
@@ -217,10 +361,11 @@ Processor::Processor()
       _waitingForStartupMelody(false),
       _lastSerialActivityAt(0),
       _standbyActive(false),
+      _standbySoundEnabled(false),
       _standbyMelodyStarted(false),
       _absolutePositioning(false)
 {
-    Serial.println("PROCESSOR INIT");
+    Serial.println("ok: PROCESSOR INIT");
 }
 
 void Processor::begin() {
@@ -235,7 +380,7 @@ void Processor::begin() {
 
 void Processor::update() {
     soundManager.update();
-    if (_waitingForStartupMelody && !soundManager.isPlaying()) {
+    if (_waitingForStartupMelody && soundManager.isFinalNoteActive()) {
         _waitingForStartupMelody = false;
         rgbStatus.setMode(RgbStatus::Mode::ReadyFlash);
     }
@@ -255,7 +400,7 @@ void Processor::update() {
             _standbyMelodyStarted = false;
         }
         if (!_standbyMelodyStarted && !soundManager.isPlaying() &&
-            soundManager.isEnabled()) {
+            _standbySoundEnabled && soundManager.isEnabled()) {
             soundManager.playCustomTheme();
             _standbyMelodyStarted = soundManager.isPlaying();
         }
@@ -324,6 +469,22 @@ bool Processor::send_to_parser(String command){
                             return false;
                         }
                     }
+                    if (GCODE.main_command == "M201" || GCODE.main_command == "M203" ||
+                        GCODE.main_command == "M92") {
+                        String settingsError;
+                        if (!validateMotionSettingParameters(commandsArr, size,
+                                                             GCODE.main_command, settingsError)) {
+                            Serial.println(settingsError);
+                            return false;
+                        }
+                    }
+                    if (GCODE.main_command == "M730") {
+                        String unitError;
+                        if (!validateUnitCommand(commandsArr, size, unitError)) {
+                            Serial.println(unitError);
+                            return false;
+                        }
+                    }
                     //print_Gcode_object(GCODE); 
                     enqueue_gcode(GCODE);
                     return true;
@@ -372,8 +533,10 @@ bool Processor::is_movement_command(Parser::g_code_command gcode){
 bool Processor::is_modifier_command(Parser::g_code_command gcode){
     if (gcode.main_command == "G90" || gcode.main_command == "G91" ||
         gcode.main_command == "G92" || isMotorEnableCommand(gcode.main_command) ||
-        gcode.main_command == "M502" ||
-        gcode.main_command == "M114" || gcode.main_command == "M119"){
+        gcode.main_command == "G20" || gcode.main_command == "G21" ||
+        gcode.main_command == "M201" || gcode.main_command == "M203" ||
+        gcode.main_command == "M92" || gcode.main_command == "M730" ||
+        gcode.main_command == "M502" || gcode.main_command == "M119"){
         return true;
     }
     return false;
@@ -394,7 +557,7 @@ bool Processor::is_rgb_command(Parser::g_code_command gcode){
     return isRgbMCode(gcode.main_command);
 }
 
-void Processor::send_to_sound_manager(Parser::g_code_command gcode){
+bool Processor::send_to_sound_manager(Parser::g_code_command gcode){
     if (gcode.main_command == "M700") {
         switch (static_cast<int>(gcode.S)) {
             case 1: soundManager.playStartupMelody(); break;
@@ -406,38 +569,48 @@ void Processor::send_to_sound_manager(Parser::g_code_command gcode){
             case 7: soundManager.playDeathMelody(); break;
             default:
                 Serial.println("Error: M700 S must be 1-7");
-                break;
+                return false;
         }
     } else if (gcode.main_command == "M710") {
         if (gcode.S == 0 || gcode.S == 1) {
-            soundManager.setEnabled(gcode.S == 1);
+            const bool enabled = gcode.S == 1;
+            soundManager.setEnabled(enabled);
+            _standbySoundEnabled = enabled;
         } else {
             Serial.println("Error: M710 S must be 0 or 1");
+            return false;
         }
     } else if (gcode.main_command == "M711") {
         if (gcode.S == 0 || gcode.S == 1) {
             soundManager.setStepSoundEnabled(gcode.S == 1);
         } else {
             Serial.println("Error: M711 S must be 0 or 1");
+            return false;
         }
     } else if (gcode.main_command == "M712") {
         if (gcode.S >= 0 && gcode.S <= 100) {
             soundManager.setVolume(static_cast<uint8_t>(gcode.S));
         } else {
             Serial.println("Error: M712 S must be an integer from 0 to 100");
+            return false;
         }
     }
+    return true;
 }
 
-void Processor::send_to_rgb_status(Parser::g_code_command gcode){
+bool Processor::send_to_rgb_status(Parser::g_code_command gcode){
     if (gcode.main_command == "M720" && (gcode.S == 0 || gcode.S == 1)) {
         rgbStatus.setEnabled(gcode.S == 1);
     } else if (gcode.main_command == "M721" && gcode.S >= 0 && gcode.S <= 255) {
         rgbStatus.setBrightness(static_cast<uint8_t>(gcode.S));
+    } else {
+        Serial.println("Error: invalid RGB status command");
+        return false;
     }
+    return true;
 }
 
-void Processor::send_to_motion_control(Parser::g_code_command gcode){
+bool Processor::send_to_motion_control(Parser::g_code_command gcode){
     String cmd = gcode.main_command;
     const bool isArc = cmd == "G2" || cmd == "G3";
     const bool clockwise = cmd == "G2";
@@ -448,17 +621,18 @@ void Processor::send_to_motion_control(Parser::g_code_command gcode){
     if (hasFeedrate) {
         if (!isfinite(gcode.F) || gcode.F <= 0) {
             Serial.println("Error: feedrate must be greater than zero");
-            return;
+            return false;
         }
-        modalFeedrate = gcode.F * stepsPerUnit() / STEPS_PER_MM;
+        modalFeedrate = gcode.F;
     }
 
     const float feed = (cmd == "G0" && !hasFeedrate)
-        ? G0_DEFAULT_FEEDRATE_MM
+        ? G0_DEFAULT_FEEDRATE_STEPS_S /
+            fmax(stepsPerUnit('X'), stepsPerUnit('Y'))
         : modalFeedrate;
     if (!isfinite(feed) || feed <= 0 || !isfinite(ACCELERATION) || ACCELERATION <= 0) {
         Serial.println("Error: feedrate and acceleration must be greater than zero");
-        return;
+        return false;
     }
 
     const float xValue = (gcode.X != MIN_INT) ? gcode.X : 0;
@@ -475,7 +649,7 @@ void Processor::send_to_motion_control(Parser::g_code_command gcode){
     if (isArc && !resolveArcCenter(gcode, x0, y0, x1, y1, clockwise,
                                    centerX, centerY, arcError)) {
         Serial.println(arcError);
-        return;
+        return false;
     }
 
     FEEDRATE = modalFeedrate;
@@ -493,30 +667,54 @@ void Processor::send_to_motion_control(Parser::g_code_command gcode){
 
     if (!movementSucceeded) {
         rgbStatus.setMode(RgbStatus::Mode::Ready);
-        return;
+        return false;
     }
 
     Xcurrent = x1;
     Ycurrent = y1;
     rgbStatus.setMode(RgbStatus::Mode::Ready);
     soundManager.playCompletionMelody();
+    return true;
 }
 
-void Processor::send_to_modifier(Parser::g_code_command gcode){
+bool Processor::send_to_modifier(Parser::g_code_command gcode){
+    if (gcode.main_command == "G20" || gcode.main_command == "G21" ||
+        gcode.main_command == "M730") {
+        const int unit = gcode.main_command == "G20"
+            ? 1
+            : (gcode.main_command == "G21"
+                ? 0
+                : static_cast<int>(gcode.S));
+        String unitError;
+        if (!setCoordinateUnit(unit, unitError)) {
+            Serial.println(unitError);
+            return false;
+        }
+        return true;
+    }
+
+    if (gcode.main_command == "M201" || gcode.main_command == "M203" ||
+        gcode.main_command == "M92") {
+        String settingsError;
+        if (!applyMotionSettings(gcode, settingsError)) {
+            Serial.println(settingsError);
+            return false;
+        }
+        return true;
+    }
+
     if (gcode.main_command == "G90") {
         _absolutePositioning = true;
-        Serial.println("Positioning mode: absolute");
-        return;
+        return true;
     }
     if (gcode.main_command == "G91") {
         _absolutePositioning = false;
-        Serial.println("Positioning mode: relative");
-        return;
+        return true;
     }
     if (gcode.main_command == "G92") {
         if (gcode.X == MIN_INT && gcode.Y == MIN_INT) {
             Serial.println("Error: G92 requires X and/or Y");
-            return;
+            return false;
         }
         if (gcode.X != MIN_INT) {
             Xcurrent = gcode.X;
@@ -524,8 +722,7 @@ void Processor::send_to_modifier(Parser::g_code_command gcode){
         if (gcode.Y != MIN_INT) {
             Ycurrent = gcode.Y;
         }
-        Serial.println("Logical position updated");
-        return;
+        return true;
     }
     if (isMotorEnableCommand(gcode.main_command)) {
         const bool enable = gcode.main_command == "M17";
@@ -548,17 +745,21 @@ void Processor::send_to_modifier(Parser::g_code_command gcode){
             if (enable) motorZ.enable();
             else motorZ.disable();
         }
-        Serial.println(enable ? "Selected stepper motors enabled" : "Selected stepper motors disabled");
-        return;
+        return true;
     }
 
-    Serial.println();
-    Serial.println("Sending to modifier ##############");
-    Serial.println();
+    Serial.println("Error: command not recognized " + gcode.main_command);
+    return false;
 }
-void Processor::send_to_getter(Parser::g_code_command gcode){
-    // do something
-    Serial.println();
-    Serial.println("Sending to getter ##############");
-    Serial.println();
+bool Processor::send_to_getter(Parser::g_code_command gcode){
+    if (gcode.main_command == "M114") {
+        Serial.print("ok: X:");
+        Serial.print(Xcurrent, 3);
+        Serial.print(" Y:");
+        Serial.println(Ycurrent, 3);
+        return true;
+    }
+
+    Serial.println("Error: position query is not implemented for this command");
+    return false;
 }

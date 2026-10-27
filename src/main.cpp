@@ -30,7 +30,7 @@ void setup() {
     // Serial.println("DONE MOVING");
     delay(1000);
     processor->begin();
-    Serial.println("Setup complete");
+    Serial.println("ok: Setup complete");
     
 }
 
@@ -38,25 +38,27 @@ void loop() {
     if (Serial.available()) {
         processor->notifySerialActivity();
         String command = Serial.readStringUntil('\n');
-        // only dequeue and dispatch when the parser actually queued a command;
-        // on bad input the parser has already printed the error
-        Serial.println("Received command: " + command);
+        // Only dequeue and dispatch when the parser actually queued a command.
         if (!processor->send_to_parser(command)) {
             return;
         }
         Parser::g_code_command gcode = dequeue_gcode();
+        bool succeeded = false;
         if (processor->is_movement_command(gcode)) {
-            processor->send_to_motion_control(gcode);
+            succeeded = processor->send_to_motion_control(gcode);
         } else if (processor->is_sound_command(gcode)) {
-            processor->send_to_sound_manager(gcode);
+            succeeded = processor->send_to_sound_manager(gcode);
         } else if (processor->is_rgb_command(gcode)) {
-            processor->send_to_rgb_status(gcode);
-        } else if (processor->is_modifier_command(gcode)) {
-            processor->send_to_modifier(gcode);
+            succeeded = processor->send_to_rgb_status(gcode);
         } else if (processor->is_getter_command(gcode)) {
-            processor->send_to_getter(gcode);
+            succeeded = processor->send_to_getter(gcode);
+        } else if (processor->is_modifier_command(gcode)) {
+            succeeded = processor->send_to_modifier(gcode);
         } else {
-            Serial.println("Error: command not recognized" + gcode.main_command);
+            Serial.println("Error: command not recognized " + gcode.main_command);
+        }
+        if (succeeded && gcode.main_command != "M114") {
+            Serial.println("ok: " + gcode.main_command + " executed");
         }
         processor->notifySerialActivity();
 

@@ -32,16 +32,14 @@
 
 
 #define NUMBER_OF_GCODES 3 // number of g-codes that will be allowed in buffer
-#define NUM_VALID_COMMANDS_W_PARAMS 16 // movement, sound, and RGB commands
-#define NUM_VALID_COMMANDS_WO_PARAMS 5 // number of commands that take no parameters
+#define NUM_VALID_COMMANDS_W_PARAMS 18 // movement, motion settings, sound, and RGB commands
+#define NUM_VALID_COMMANDS_WO_PARAMS 7 // number of commands that take no parameters
 #define MIN_INT -32768 // used as NAN 
-#define G0_DEFAULT_FEEDRATE_MM 99999.0 // mm/min, used by G0 only when F is omitted
-#define MAX_FEEDRATE_IN 196.85 // in/min
+#define G0_DEFAULT_FEEDRATE_STEPS_S 1666.65 // steps/s, used by G0 only when F is omitted
 
 
 extern int CURRENT_UNIT;
-extern float STEPS_PER_MM;
-extern float STEPS_PER_INCH;
+extern float STEPS_PER_MM_X, STEPS_PER_MM_Y, STEPS_PER_MM_Z;
 
 
 
@@ -61,10 +59,13 @@ extern Parser::g_code_command dequeue_gcode();
 extern void print_Gcode_object(Parser::g_code_command gcode);
 
 // steps per 1 unit in the current unit mode (mm, inch, or step)
-extern float stepsPerUnit();
+extern float stepsPerUnit(char axis);
+extern float stepsPerMm(char axis);
 
 // Global movement variables
 extern float Xcurrent, Ycurrent, FEEDRATE, icurrent, jcurrent, rcurrent, ACCELERATION;
+extern float MAX_ACCELERATION_X, MAX_ACCELERATION_Y, MAX_ACCELERATION_Z;
+extern float MAX_FEEDRATE_X, MAX_FEEDRATE_Y, MAX_FEEDRATE_Z;
 
 // If StringType is not defined, define it
 #ifndef StringType

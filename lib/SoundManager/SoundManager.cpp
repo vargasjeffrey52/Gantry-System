@@ -168,10 +168,15 @@ bool SoundManager::isPlaying() const {
            _queuedNotes != nullptr;
 }
 
+bool SoundManager::isFinalNoteActive() const {
+    return _notes != nullptr && _noteActive && _noteCount > 0 &&
+           _noteIndex == _noteCount - 1;
+}
+
 void SoundManager::playStartupMelody() {
     static const Note startupNotes[] = {
         {1319, 120, 25}, {1568, 120, 25}, {2637, 120, 25},
-        {2093, 120, 25}, {2349, 120, 25}, {3136, 120, 175},
+        {2093, 120, 25}, {2349, 120, 25}, {3136, 120, 500},
         {988, 50, 10}, {1319, 400, 50}
     };
     startMelody(startupNotes, sizeof(startupNotes) / sizeof(startupNotes[0]));

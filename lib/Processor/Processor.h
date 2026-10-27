@@ -21,11 +21,11 @@ public:
     bool is_rgb_command(Parser::g_code_command gcode);
 
     bool send_to_parser(String command);
-    void send_to_motion_control(Parser::g_code_command gcode);
-    void send_to_modifier(Parser::g_code_command gcode);
-    void send_to_getter(Parser::g_code_command gcode);
-    void send_to_sound_manager(Parser::g_code_command gcode);
-    void send_to_rgb_status(Parser::g_code_command gcode);
+    bool send_to_motion_control(Parser::g_code_command gcode);
+    bool send_to_modifier(Parser::g_code_command gcode);
+    bool send_to_getter(Parser::g_code_command gcode);
+    bool send_to_sound_manager(Parser::g_code_command gcode);
+    bool send_to_rgb_status(Parser::g_code_command gcode);
 
 
 private:
@@ -39,6 +39,7 @@ private:
     bool _waitingForStartupMelody;
     uint32_t _lastSerialActivityAt;
     bool _standbyActive;
+    bool _standbySoundEnabled;
     bool _standbyMelodyStarted;
     bool _absolutePositioning;
 };

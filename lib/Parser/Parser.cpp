@@ -137,6 +137,8 @@ Parser::g_code_command Parser::create_gcode_object(const StringType* cmd_Array, 
                     gcode.X = cmd_Array[i].substring(1).toDouble();
                 } else if (cmd_Array[i][0] == 'Y') {
                     gcode.Y = cmd_Array[i].substring(1).toDouble();
+                } else if (cmd_Array[i][0] == 'Z') {
+                    gcode.Z = cmd_Array[i].substring(1).toDouble();
                 } else if (cmd_Array[i][0] == 'F') {
                     gcode.F = cmd_Array[i].substring(1).toDouble();
                 } else if (cmd_Array[i][0] == 'I') {

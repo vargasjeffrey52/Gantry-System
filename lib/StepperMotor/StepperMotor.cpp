@@ -2,8 +2,7 @@
 
 //Constructor for instance of a stepper motor
 StepperMotor::StepperMotor(int stepPin, int dirPin, int enPin, int ms1, int ms2){
-    Serial.println("STEPPER CONSTRUCTOR");
-    Serial.println("EN: " + String(enPin) + ", " + "dir: " + String(dirPin) + " step: " + String(stepPin) );
+    Serial.println("ok: Stepper motor initialized");
     _stepPin = stepPin;
     _dirPin = dirPin;
     _enPin = enPin;

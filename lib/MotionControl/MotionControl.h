@@ -46,9 +46,11 @@ public:
     void printStatus();
 
 private:
-    void moveHline (float x0, float y0, float x1, float y1, float feedrate);
-    void moveVline (float x0, float y0, float x1, float y1, float feedrate);
-    int convertToSteps(float x);
+    void moveHline (float x0, float y0, float x1, float y1,
+                    float feedrate, float acceleration);
+    void moveVline (float x0, float y0, float x1, float y1,
+                    float feedrate, float acceleration);
+    int convertToSteps(float x, char axis);
     StepperMotor& _motorX;
     StepperMotor& _motorY1;
     SoundManager& _soundManager;

@@ -55,10 +55,41 @@ void MotionControl::moveNsteps(int n, char axis){
 /*
 */
 void MotionControl::moveLine(float x0, float y0, float x1, float y1, float feedrate){
+    const double deltaX = fabs(x1 - x0);
+    const double deltaY = fabs(y1 - y0);
+    const double pathLength = hypot(deltaX, deltaY);
+    if (!isfinite(pathLength) || pathLength <= 0) {
+        return;
+    }
+
+    const double ratioX = deltaX / pathLength;
+    const double ratioY = deltaY / pathLength;
+    double maxPathSpeed = INFINITY;
+    double pathAcceleration = INFINITY;
+    if (ratioX > 0) {
+        maxPathSpeed = fmin(maxPathSpeed,
+                            MAX_FEEDRATE_X / (stepsPerUnit('X') * ratioX));
+        pathAcceleration = fmin(pathAcceleration,
+                                MAX_ACCELERATION_X / (stepsPerUnit('X') * ratioX));
+    }
+    if (ratioY > 0) {
+        maxPathSpeed = fmin(maxPathSpeed,
+                            MAX_FEEDRATE_Y / (stepsPerUnit('Y') * ratioY));
+        pathAcceleration = fmin(pathAcceleration,
+                                MAX_ACCELERATION_Y / (stepsPerUnit('Y') * ratioY));
+    }
+
+    const float limitedFeedrate = static_cast<float>(fmin(feedrate, maxPathSpeed));
+    const float limitedAcceleration = static_cast<float>(pathAcceleration);
+    if (!isfinite(limitedFeedrate) || limitedFeedrate <= 0 ||
+        !isfinite(limitedAcceleration) || limitedAcceleration <= 0) {
+        return;
+    }
+
     if (fabs(x1 - x0) > fabs(y1 - y0)){
-        moveHline(x0, y0, x1, y1, feedrate);
+        moveHline(x0, y0, x1, y1, limitedFeedrate, limitedAcceleration);
     } else{
-        moveVline(x0, y0, x1, y1, feedrate);
+        moveVline(x0, y0, x1, y1, limitedFeedrate, limitedAcceleration);
     }
 }
 
@@ -84,8 +115,13 @@ void MotionControl::moveTo(int x0, int x1, int y0, int y1, int dt, float speedRa
 bool MotionControl::moveArc(float startX, float startY, float endX, float endY,
                             float centerX, float centerY, float feedrate, bool clockwise) {
     const double radius = hypot(startX - centerX, startY - centerY);
+    const double maxFeedrate = fmin(MAX_FEEDRATE_X / stepsPerUnit('X'),
+                                    MAX_FEEDRATE_Y / stepsPerUnit('Y'));
+    const double maxAcceleration = fmin(MAX_ACCELERATION_X / stepsPerUnit('X'),
+                                        MAX_ACCELERATION_Y / stepsPerUnit('Y'));
     if (!isfinite(radius) || radius <= 0 || !isfinite(feedrate) ||
-        feedrate <= 0 || !isfinite(ACCELERATION) || ACCELERATION <= 0) {
+        feedrate <= 0 || !isfinite(maxFeedrate) || maxFeedrate <= 0 ||
+        !isfinite(maxAcceleration) || maxAcceleration <= 0) {
         return false;
     }
 
@@ -99,9 +135,10 @@ bool MotionControl::moveArc(float startX, float startY, float endX, float endY,
         sweep = 2 * ARC_PI;
     }
 
-    const double pathLengthSteps = radius * sweep * stepsPerUnit();
-    const double requestedMaxSpeed = (feedrate / 60.0) * STEPS_PER_MM;
-    const double acceleration = ACCELERATION * STEPS_PER_MM;
+    const double pathLengthSteps = radius * sweep * fmax(stepsPerUnit('X'), stepsPerUnit('Y'));
+    const double arcStepsPerUnit = fmax(stepsPerUnit('X'), stepsPerUnit('Y'));
+    const double requestedMaxSpeed = fmin(feedrate, maxFeedrate) * arcStepsPerUnit;
+    const double acceleration = maxAcceleration * arcStepsPerUnit;
     const double sampleCountValue = ceil(pathLengthSteps * 2.0);
     if (!isfinite(pathLengthSteps) || pathLengthSteps <= 0 ||
         !isfinite(sampleCountValue) || sampleCountValue > MAX_ARC_SAMPLES ||
@@ -118,10 +155,10 @@ bool MotionControl::moveArc(float startX, float startY, float endX, float endY,
         accelerationDistance = pathLengthSteps / 2;
     }
 
-    int previousX = convertToSteps(startX);
-    int previousY = convertToSteps(startY);
-    const int finalX = convertToSteps(endX);
-    const int finalY = convertToSteps(endY);
+    int previousX = convertToSteps(startX, 'X');
+    int previousY = convertToSteps(startY, 'Y');
+    const int finalX = convertToSteps(endX, 'X');
+    const int finalY = convertToSteps(endY, 'Y');
 
     _motorX.enable();
     _motorY1.enable();
@@ -131,10 +168,10 @@ bool MotionControl::moveArc(float startX, float startY, float endX, float endY,
         const double angle = startAngle + (clockwise ? -1 : 1) * sweep * fraction;
         const int nextX = (sample == sampleCount)
             ? finalX
-            : convertToSteps(centerX + radius * cos(angle));
+            : convertToSteps(centerX + radius * cos(angle), 'X');
         const int nextY = (sample == sampleCount)
             ? finalY
-            : convertToSteps(centerY + radius * sin(angle));
+            : convertToSteps(centerY + radius * sin(angle), 'Y');
 
         if (nextX != previousX) {
             _motorX.setDirection(nextX > previousX);
@@ -153,10 +190,10 @@ bool MotionControl::moveArc(float startX, float startY, float endX, float endY,
         }
         speed = fmax(speed, 1.0);
 
-        const double intervalUs = 1000000.0 / speed;
-        const int stepDelay = intervalUs >= INT_MAX
+        const double pulseDelayUs = 500000.0 / speed;
+        const int stepDelay = pulseDelayUs >= INT_MAX
             ? INT_MAX
-            : static_cast<int>(round(intervalUs));
+            : static_cast<int>(round(pulseDelayUs));
         moveTo(previousX, nextX, previousY, nextY,
                (stepDelay > 0) ? stepDelay : 1,
                static_cast<float>(speed / requestedMaxSpeed));
@@ -172,36 +209,33 @@ bool MotionControl::moveArc(float startX, float startY, float endX, float endY,
 
 
 // x0 , y0, x1 and y1 are in units of mm or inches. 
-void MotionControl::moveHline (float x0, float y0, float x1, float y1,float feedrate){
+void MotionControl::moveHline (float x0, float y0, float x1, float y1,
+                               float feedrate, float acceleration){
     _motorX.setDirection(x0<x1);
     _motorY1.setDirection(y0<y1);
     _motorX.enable();
     _motorY1.enable();
 
 
-    //TODO: Will first configure this to work in units of mm. ill figure out how to make it work with inches later
-    // convert all values to units of steps before interpolating velocity and distances. 
-    //note Feedrate is normally given in units of mm/min, or in/min so that requires another conversion 
-    // Acceleration normally given in units of mm/s^2 or
-    long x_0 = convertToSteps(x0);
-    long x_1 = convertToSteps(x1);
-    long y_0 = convertToSteps(y0);
-    long y_1 = convertToSteps(y1);
-    //TODO: currently assuming FEEDRATE is in units of mm/min and converting to steps per/sec (need to fix for inch/sec)
-    double Vmax  = (feedrate/60.0) * STEPS_PER_MM;
+    // Convert coordinates to steps before interpolating velocity and distance.
+    long x_0 = convertToSteps(x0, 'X');
+    long x_1 = convertToSteps(x1, 'X');
+    long y_0 = convertToSteps(y0, 'Y');
+    long y_1 = convertToSteps(y1, 'Y');
+    const double pathLengthUnits = hypot(x1 - x0, y1 - y0);
+    const double majorAxisUnitsPerPathUnit = pathLengthUnits > 0
+        ? fabs(static_cast<double>(x1) - x0) / pathLengthUnits
+        : 1;
+    // Convert the major-axis component of the active-unit feedrate to steps/second.
+    double Vmax  = feedrate * majorAxisUnitsPerPathUnit * stepsPerUnit('X');
     //Vmax = 100;
 
     // figure out acceleration distance to reach vmax and deceleration from vmax to 0
     
     // ********FROM THIS POINT ON EVERYTHING SHOULD BE IN UNITS OF STEPS, STEPS/S or STEPS/s^2 *******
     double vi = 0; // starting velocity in units of steps/sec
-    double acc = ACCELERATION * STEPS_PER_MM;
+    double acc = acceleration * majorAxisUnitsPerPathUnit * stepsPerUnit('X');
     //acc = 200;
-    
-    double iacc = (Vmax * Vmax )/(2*acc); //TODO: assuming acceeleration is in units of mm/s^2 change so that its more generic
-    //iacc = iacc * STEPS_PER_MM; //converting to steps
-    double idcc = iacc; // deceleration distance must be symetric since time spend accelerating much be = to time spend decelerating for smooth movement
-    
     
     // alows me to draw the line starting from the endpoint to the startpoint if slope is negative
     // takes care of negative dx
@@ -225,12 +259,6 @@ void MotionControl::moveHline (float x0, float y0, float x1, float y1,float feed
     
 
     
-    // takes care of not enough distance to accelerate to vmax ie
-    if ((dx - iacc - idcc) < 0 ){
-        iacc = dx/2.0;
-        idcc = iacc;
-    }
-    
     // dx in units of STEPS
     if (dx != 0 ){
         long y = y_0;
@@ -239,20 +267,11 @@ void MotionControl::moveHline (float x0, float y0, float x1, float y1,float feed
         // Serial.println(String(x_0) + ", " + String(y_0) + ", " + String(x_1) + ", " + String(y_1));
         // moves in units of steps.
         for (long i = 0; i <= dx; i++){ 
-            
-            if (i < iacc-1){
-                // accelerate
-                vi = sqrt(2 * acc * (i+1));
-            }else if ( i > dx - idcc -1){
-                // decelerate
-                vi = sqrt(2 * acc *(dx-i +1));
-            }
-            else {
-                // constant velocity
-                vi = Vmax;
-            }
+            const double progress = (i == 0) ? 0.5 : i - 0.5;
+            const double remaining = dx - progress;
+            vi = fmin(Vmax, sqrt(2 * acc * fmin(progress, remaining)));
             // convert from steps/s to scc/step for delay time.
-            long dt = round((1e6/vi));
+            long dt = round(500000.0/vi);
             // Serial.println("(" + String(i)+ ", " + String(y) +", " + String(dt) +")"); // printing each stept to check if it correctly generates a line.
 
             moveTo(x_0, x_0 + i, yPrev, y, dt, (Vmax > 0) ? vi / Vmax : 0);
@@ -272,35 +291,32 @@ void MotionControl::moveHline (float x0, float y0, float x1, float y1,float feed
 
 
 // x0 , y0, x1 and y1 are in units of mm or inches. 
-void MotionControl::moveVline (float x0, float y0, float x1, float y1, float feedrate){
+void MotionControl::moveVline (float x0, float y0, float x1, float y1,
+                               float feedrate, float acceleration){
     _motorX.setDirection(x0<x1);
     _motorY1.setDirection(y0<y1);
     _motorX.enable();
     _motorY1.enable();
 
-    //TODO: Will first configure this to work in units of mm. ill figure out how to make it work with inches later
-    // convert all values to units of steps before interpolating velocity and distances. 
-    //note Feedrate is normally given in units of mm/min, or in/min so that requires another conversion 
-    // Acceleration normally given in units of mm/s^2 or
-    long x_0 = convertToSteps(x0);
-    long x_1 = convertToSteps(x1);
-    long y_0 = convertToSteps(y0);
-    long y_1 = convertToSteps(y1);
-    //TODO: currently assuming FEEDRATE is in units of mm/min and converting to steps per/sec (need to fix for inch/sec)
-    double Vmax  = (feedrate/60.0) * STEPS_PER_MM;
+    // Convert coordinates to steps before interpolating velocity and distance.
+    long x_0 = convertToSteps(x0, 'X');
+    long x_1 = convertToSteps(x1, 'X');
+    long y_0 = convertToSteps(y0, 'Y');
+    long y_1 = convertToSteps(y1, 'Y');
+    const double pathLengthUnits = hypot(x1 - x0, y1 - y0);
+    const double majorAxisUnitsPerPathUnit = pathLengthUnits > 0
+        ? fabs(static_cast<double>(y1) - y0) / pathLengthUnits
+        : 1;
+    // Convert the major-axis component of the active-unit feedrate to steps/second.
+    double Vmax  = feedrate * majorAxisUnitsPerPathUnit * stepsPerUnit('Y');
     //Vmax = 100;
 
     // figure out acceleration distance to reach vmax and deceleration from vmax to 0
     
     // ********FROM THIS POINT ON EVERYTHING SHOULD BE IN UNITS OF STEPS, STEPS/S or STEPS/s^2 *******
     double vi = 0; // starting velocity in units of steps/sec
-    double acc = ACCELERATION * STEPS_PER_MM;
+    double acc = acceleration * majorAxisUnitsPerPathUnit * stepsPerUnit('Y');
     //acc = 200;
-    
-    double iacc = (Vmax * Vmax )/(2*acc); //TODO: assuming acceeleration is in units of mm/s^2 change so that its more generic
-    //iacc = iacc * STEPS_PER_MM; //converting to steps
-    double idcc = iacc; // deceleration distance must be symetric since time spend accelerating much be = to time spend decelerating for smooth movement
-    
     
     // alows me to draw the line starting from the endpoint to the startpoint if slope is negative
     // takes care of negative dx
@@ -322,11 +338,6 @@ void MotionControl::moveVline (float x0, float y0, float x1, float y1, float fee
     // takes care of negative dy
     dx *= dir;
     
-    // takes care of not enough distance to accelerate to vmax ie
-    if ((dy - iacc - idcc) < 0 ){
-        iacc = dy/2.0;
-        idcc = iacc;
-    }
     // dx in units of STEPS
     if (dy != 0 ){
         long x = x_0;
@@ -335,20 +346,11 @@ void MotionControl::moveVline (float x0, float y0, float x1, float y1, float fee
         // Serial.println(String(x_0) + ", " + String(y_0) + ", " + String(x_1) + ", " + String(y_1));
         // moves in units of steps.
         for (long i = 0; i <= dy; i++){ 
-            
-            if (i < iacc -1){
-                // accelerate
-                vi = sqrt(2 * acc * (i+1));
-            }else if ( i > dy - idcc -1){
-                // decelerate
-                vi = sqrt(2 * acc *(dy-i +1));
-            }
-            else {
-                // constant velocity
-                vi = Vmax;
-            }
+            const double progress = (i == 0) ? 0.5 : i - 0.5;
+            const double remaining = dy - progress;
+            vi = fmin(Vmax, sqrt(2 * acc * fmin(progress, remaining)));
             // convert from steps/s to scc/step for delay time.
-            long dt = round((1e6/vi));
+            long dt = round(500000.0/vi);
             // Serial.println("(" + String(x)+ ", " + String(i) +", " + String(dt) +")"); // printing each stept to check if it correctly generates a line.
 
             moveTo(xPrev, x, y_0, y_0 + i, dt, (Vmax > 0) ? vi / Vmax : 0);
@@ -370,22 +372,9 @@ void MotionControl::moveVline (float x0, float y0, float x1, float y1, float fee
 
 
 
-int MotionControl::convertToSteps(float x){
-    //TODO: ASSUMES NO MICROSTEPPING. i.e.  1step in the program corresponds to 1 physical step on the driver/motor. 
-    //TODO: the driver (TMC2209) starts by microstepping i.e. need to fix this method eventually.
-    if(CURRENT_UNIT == 0){
-        //DEFAULT 0 means x is in mm hence convert using global variable
-        return (int) round(x * STEPS_PER_MM);   
-    } else if (CURRENT_UNIT == 1)
-    {
-        // 1 means x is in units of Inches hence convert using global varialble
-        return (int) round(x * STEPS_PER_INCH);
-    } else {
-        // anything else will be considered units of steps howerver in globals i defined it as -1 being units of steps
-        return (int) x;
-    }
-    
-    // return isInInches ? round(x * STEPS_PER_INCH) : round(x * STEPS_PER_MM);
+int MotionControl::convertToSteps(float x, char axis){
+    const float axisStepsPerUnit = stepsPerUnit(axis);
+    return static_cast<int>(round(x * axisStepsPerUnit));
 }
 
 

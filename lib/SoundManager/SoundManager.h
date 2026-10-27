@@ -15,6 +15,7 @@ public:
     void setStepSoundEnabled(bool enabled);
     void setVolume(uint8_t volumePercent);
     bool isPlaying() const;
+    bool isFinalNoteActive() const;
     void playStartupMelody();
     void playCompletionMelody();
     void playSingleTone();

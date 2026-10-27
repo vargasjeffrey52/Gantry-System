@@ -6,19 +6,23 @@ Parser::g_code_command Gcode_BUFFER[NUMBER_OF_GCODES];
 Parser::g_code_command GCODE;
 
 const StringType validCommandsWParams[NUM_VALID_COMMANDS_W_PARAMS] = {
-    "G0", "G1", "G2", "G3", "G92", "G28", "M17", "M18", "M203", "M201",
+    "G0", "G1", "G2", "G3", "G92", "G28", "M17", "M18", "M203", "M201", "M92", "M730",
     "M700", "M710", "M711", "M712", "M720", "M721"
 };
-const StringType validCommandsWoutParams[NUM_VALID_COMMANDS_WO_PARAMS] = {"G90", "G91", "M502", "M114", "M119"};
+const StringType validCommandsWoutParams[NUM_VALID_COMMANDS_WO_PARAMS] = {
+    "G20", "G21", "G90", "G91", "M502", "M114", "M119"
+};
 
-int CURRENT_UNIT = 0;  // set current unit to -1 for steps 0 for mm and 1 for inches
-float STEPS_PER_MM = 60; // TODO: update this value once you know what 
-//float STEPS_PER_MM = 1; // TODO: update this value once you know what 
-float STEPS_PER_INCH = 2032; // TODO: update this value once you know how many steps per inches
+int CURRENT_UNIT = -1; // -1 for steps, 0 for mm, and 1 for inches
+float STEPS_PER_MM_X = 60;
+float STEPS_PER_MM_Y = 60;
+float STEPS_PER_MM_Z = 60;
 
 int HEAD = 0, TAIL = 0, Gcode_BUFFER_SIZE = 0;
 float Xcurrent = 0, Ycurrent = 0, jcurrent=0, icurrent=0, rcurrent=0;
-float FEEDRATE = 1000, ACCELERATION = 100; // TODO: currently assuming units of mm/s and mm/s^2 must change to account for inches.
+float FEEDRATE = 1000, ACCELERATION = 4000000;
+float MAX_ACCELERATION_X = 4000000, MAX_ACCELERATION_Y = 4000000, MAX_ACCELERATION_Z = 100;
+float MAX_FEEDRATE_X = 9600, MAX_FEEDRATE_Y = 12000, MAX_FEEDRATE_Z = 5;
 
 // Add g-code to the queue for later processing
 void enqueue_gcode(Parser::g_code_command gcode) {
@@ -41,22 +45,31 @@ Parser::g_code_command dequeue_gcode() {
     return gcode;
 }
 
-float stepsPerUnit() {
-    if (CURRENT_UNIT == 0) return STEPS_PER_MM;    // mm
-    if (CURRENT_UNIT == 1) return STEPS_PER_INCH;  // inches
-    return 1.0;                                    // steps
+float stepsPerMm(char axis) {
+    if (axis == 'X') return STEPS_PER_MM_X;
+    if (axis == 'Y') return STEPS_PER_MM_Y;
+    if (axis == 'Z') return STEPS_PER_MM_Z;
+    return 0;
+}
+
+float stepsPerUnit(char axis) {
+    const float calibration = stepsPerMm(axis);
+    if (CURRENT_UNIT == -1) return 1.0f;
+    if (CURRENT_UNIT == 0) return calibration;
+    if (CURRENT_UNIT == 1) return calibration * 25.4f;
+    return 0;
 }
 
 void print_Gcode_object(Parser::g_code_command gcode) {
-    Serial.print("Main Command: ");
+    Serial.print("ok: Main Command: ");
     Serial.println(gcode.main_command);
-    Serial.print("X: ");
+    Serial.print("ok: X: ");
     Serial.print((int) gcode.X);
     Serial.print(" Y: ");
     Serial.print(gcode.Y);
     Serial.print(" F: ");
     Serial.println(gcode.F);
-    Serial.print("I: ");
+    Serial.print("ok: I: ");
     Serial.print(gcode.I);
     Serial.print(" J: ");
     Serial.print(gcode.J);

@@ -41,7 +41,7 @@ public:
 
     struct g_code_command {
         String main_command;  // Main command Ex. G0, G1, G2, G3, ...
-        double X, Y, F, I, J, R, S;
+        double X, Y, Z, F, I, J, R, S;
         uint8_t axisMask;
         static constexpr uint8_t AXIS_X = 0x01;
         static constexpr uint8_t AXIS_Y = 0x02;
@@ -55,6 +55,7 @@ public:
             axisMask = 0;
             X = MIN_INT;
             Y = MIN_INT;
+            Z = MIN_INT;
             F = MIN_INT;
             I = MIN_INT;
             J = MIN_INT;
