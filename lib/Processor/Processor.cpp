@@ -468,6 +468,10 @@ bool Processor::send_to_parser(String command){
                             return false;
                         }
                     }
+                    if (GCODE.main_command == "G28" && size != 1) {
+                        Serial.println("Error: G28 does not take parameters");
+                        return false;
+                    }
                     if (isMotorEnableCommand(GCODE.main_command)) {
                         String motorParameterError;
                         if (!validateMotorAxisParameters(commandsArr, size, motorParameterError)) {
@@ -538,7 +542,8 @@ bool Processor::is_movement_command(Parser::g_code_command gcode){
 
 bool Processor::is_modifier_command(Parser::g_code_command gcode){
     if (gcode.main_command == "G90" || gcode.main_command == "G91" ||
-        gcode.main_command == "G92" || isMotorEnableCommand(gcode.main_command) ||
+        gcode.main_command == "G28" || gcode.main_command == "G92" ||
+        isMotorEnableCommand(gcode.main_command) ||
         gcode.main_command == "G20" || gcode.main_command == "G21" ||
         gcode.main_command == "M201" || gcode.main_command == "M203" ||
         gcode.main_command == "M92" || gcode.main_command == "M730" ||
@@ -692,6 +697,10 @@ bool Processor::send_to_motion_control(Parser::g_code_command gcode){
 }
 
 bool Processor::send_to_modifier(Parser::g_code_command gcode){
+    if (gcode.main_command == "G28") {
+        return M_Control.home();
+    }
+
     if (gcode.main_command == "M741") {
         if (gcode.S != 0 && gcode.S != 1) {
             Serial.println("Error: M741 S must be 0 or 1");

@@ -27,7 +27,7 @@ public:
     bool moveArc(float startX, float startY, float endX, float endY,
                  float centerX, float centerY, float feedrate, bool clockwise);
     void moveBy(float dx, float dy);
-    void home();
+    bool home();
 
     // Movement Utilities
     void setSpeed(float speed);
@@ -55,6 +55,10 @@ private:
     bool moveVline (float x0, float y0, float x1, float y1,
                     float feedrate, float acceleration);
     bool checkLimitsAndStop();
+    bool homeAxis(StepperMotor& motor, uint8_t limitPin, bool homeDirection,
+                  uint32_t maxTravelSteps, uint32_t maxPullOffSteps, char axis);
+    bool moveUntilLimit(StepperMotor& motor, uint8_t limitPin, bool direction,
+                        uint32_t maxSteps, bool targetActive, int stepDelayUs);
     int convertToSteps(float x, char axis);
     StepperMotor& _motorX;
     StepperMotor& _motorY1;

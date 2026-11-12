@@ -62,7 +62,7 @@ completion melody is requested after a supported `G0`–`G3` move returns.
 | `G90`  | `G90`                    | Use absolute X/Y endpoints.                                                                                             |
 | `G91`  | `G91`                    | Use relative X/Y endpoints.                                                                                             |
 | `G92`  | `G92 X0 Y0`              | Set the logical current position without moving the gantry.                                                             |
-| `G28`  | `G28`                    | Accepted by the parser; homing is not implemented.                                                                      |
+| `G28`  | `G28`                    | Home X in the positive direction, then Y in the negative direction; back off until released and set the backed-off location to `(0, 0)`. |
 | `M17`  | `M17 X Z`                | Enable the selected X/Y/Z stepper drivers; with no selectors, enable all three. Y selects both linked Y drivers.        |
 | `M18`  | `M18 Y`                  | Disable the selected X/Y/Z stepper drivers; with no selectors, disable all three. Y selects both linked Y drivers.      |
 | `G20`  | `G20`                    | Select inches, converting the tracked position and modal feedrate without changing the physical position or speed.      |
@@ -80,12 +80,22 @@ XY motion enables both X/Y drivers and leaves them enabled until an `M18` comman
 disables them. A later XY move re-enables both. Z motor enable control is supported,
 but Z movement is not implemented.
 
-Homing (`G28`), reset (`M502`), and endstop reporting (`M119`) do not have
-functional implementations yet. The X endstop input is GPIO 6 and the Y
+Reset (`M502`) and endstop reporting (`M119`) do not have functional
+implementations yet. `G28` requires both endstop circuits to read closed
+before starting, then searches X in the positive direction and Y in the
+negative direction sequentially at 1,000 step pulses/s.
+Searches abort after the measured maximum travel of 10,500 X steps or 55,000 Y
+steps. Each axis uses a fast seek and release, then a slow re-approach and
+slower final release (about 1,000, 200, and 100 step pulses/s respectively).
+Back-offs stop as soon as the switch circuit closes, with a maximum of 100 X
+steps or 500 Y steps. The final backed-off position is assigned coordinate
+zero. The X endstop input is
+GPIO 6 and the Y
 endstop input is GPIO 5. Both inputs use pull-ups and expect normally-closed
 switches wired to ground, reading LOW while the circuit is closed and HIGH
-when a switch opens; the two X
-endstop switches are wired in series for each axis. On a crash, the firmware plays the`M700 S7` death melody. Safe-move stopping is enabled by default; `M741 S1`
+when a switch opens; the two X endstop switches are wired in series. On a
+crash, the firmware plays the `M700 S7` death melody. Safe-move stopping is
+enabled by default; `M741 S1`
 enables it and `M741 S0` disables stopping while retaining crash sound playback.
 With safe move enabled, an active endstop stops the current move and both
 stepper pulse outputs; clear the endstop circuit before moving again. `M92`,

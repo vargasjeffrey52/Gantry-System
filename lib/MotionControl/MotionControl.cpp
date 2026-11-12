@@ -8,6 +8,13 @@
 namespace {
 constexpr double ARC_PI = 3.14159265358979323846;
 constexpr uint32_t MAX_ARC_SAMPLES = 1000000;
+constexpr int HOMING_FAST_STEP_DELAY_US = 500;
+constexpr int HOMING_SLOW_STEP_DELAY_US = 2500;
+constexpr int HOMING_FINE_STEP_DELAY_US = 5000;
+constexpr uint32_t HOMING_X_PULL_OFF_MAX_STEPS = 100;
+constexpr uint32_t HOMING_Y_PULL_OFF_MAX_STEPS = 500;
+constexpr uint32_t HOMING_MAX_X_STEPS = 10500;
+constexpr uint32_t HOMING_MAX_Y_STEPS = 55000;
 }
 
 MotionControl::MotionControl(StepperMotor& motorX, StepperMotor& motorY1,
@@ -16,6 +23,7 @@ MotionControl::MotionControl(StepperMotor& motorX, StepperMotor& motorY1,
     _motorY1(motorY1),
     _soundManager(soundManager),
     _rgbStatus(rgbStatus),
+    _isHomed(false),
     _safeMoveEnabled(true),
     _xLimitWasActive(false),
     _yLimitWasActive(false),
@@ -32,6 +40,95 @@ void MotionControl::begin() {
 
 void MotionControl::updateEndstopStatus() {
     checkLimitsAndStop();
+}
+
+bool MotionControl::home() {
+    _isHomed = false;
+    if (digitalRead(X_LIMIT_PIN) == HIGH || digitalRead(Y_LIMIT_PIN) == HIGH) {
+        Serial.println("Error: G28 requires both endstop circuits to be closed before homing");
+        return false;
+    }
+
+    _rgbStatus.setMode(RgbStatus::Mode::Moving);
+
+    if (!homeAxis(_motorX, X_LIMIT_PIN, true, HOMING_MAX_X_STEPS,
+                  HOMING_X_PULL_OFF_MAX_STEPS, 'X')) {
+        _rgbStatus.setMode(RgbStatus::Mode::Ready);
+        return false;
+    }
+    Xcurrent = 0;
+
+    if (!homeAxis(_motorY1, Y_LIMIT_PIN, false, HOMING_MAX_Y_STEPS,
+                  HOMING_Y_PULL_OFF_MAX_STEPS, 'Y')) {
+        _rgbStatus.setMode(RgbStatus::Mode::Ready);
+        return false;
+    }
+    Ycurrent = 0;
+
+    _isHomed = true;
+    _rgbStatus.setMode(RgbStatus::Mode::Ready);
+    return true;
+}
+
+bool MotionControl::homeAxis(StepperMotor& motor, uint8_t limitPin,
+                             bool homeDirection, uint32_t maxTravelSteps,
+                             uint32_t maxPullOffSteps, char axis) {
+    if (!moveUntilLimit(motor, limitPin, homeDirection, maxTravelSteps, true,
+                        HOMING_FAST_STEP_DELAY_US)) {
+        Serial.print("Error: G28 ");
+        Serial.print(axis);
+        Serial.println(" fast seek did not reach the endstop within its travel limit");
+        return false;
+    }
+
+    if (!moveUntilLimit(motor, limitPin, !homeDirection, maxPullOffSteps, false,
+                        HOMING_FAST_STEP_DELAY_US)) {
+        Serial.print("Error: G28 ");
+        Serial.print(axis);
+        Serial.println(" fast back-off did not release the endstop");
+        return false;
+    }
+
+    if (!moveUntilLimit(motor, limitPin, homeDirection, maxPullOffSteps, true,
+                        HOMING_SLOW_STEP_DELAY_US)) {
+        Serial.print("Error: G28 ");
+        Serial.print(axis);
+        Serial.println(" slow seek did not trigger the endstop");
+        return false;
+    }
+
+    if (!moveUntilLimit(motor, limitPin, !homeDirection, maxPullOffSteps, false,
+                        HOMING_FINE_STEP_DELAY_US)) {
+        Serial.print("Error: G28 ");
+        Serial.print(axis);
+        Serial.println(" slow back-off did not release the endstop");
+        return false;
+    }
+
+    return true;
+}
+
+bool MotionControl::moveUntilLimit(StepperMotor& motor, uint8_t limitPin,
+                                   bool direction, uint32_t maxSteps,
+                                   bool targetActive, int stepDelayUs) {
+    motor.setDirection(direction);
+    motor.enable();
+    for (uint32_t step = 0; step < maxSteps; ++step) {
+        const bool limitActive = digitalRead(limitPin) == HIGH;
+        if (limitActive == targetActive) {
+            motor.stop();
+            return true;
+        }
+
+        motor.SingleStep(stepDelayUs);
+        if (step % 10 == 0) {
+            _soundManager.update();
+            _rgbStatus.update();
+        }
+    }
+
+    motor.stop();
+    return (digitalRead(limitPin) == HIGH) == targetActive;
 }
 
 // Core Methods
