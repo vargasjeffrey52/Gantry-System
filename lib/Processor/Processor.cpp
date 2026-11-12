@@ -217,6 +217,9 @@ bool isValidSArgument(const String& command, const String& parameter, double val
     if (command == "M721") {
         return value >= 0 && value <= 255;
     }
+    if (command == "M741") {
+        return value == 0 || value == 1;
+    }
     return value == 0 || value == 1;
 }
 
@@ -371,6 +374,7 @@ Processor::Processor()
 void Processor::begin() {
     rgbStatus.begin();
     soundManager.begin();
+    M_Control.begin();
     soundManager.playStartupMelody();
     _waitingForStartupMelody = soundManager.isPlaying();
     _lastSerialActivityAt = millis();
@@ -380,6 +384,7 @@ void Processor::begin() {
 
 void Processor::update() {
     soundManager.update();
+    M_Control.updateEndstopStatus();
     if (_waitingForStartupMelody && soundManager.isFinalNoteActive()) {
         _waitingForStartupMelody = false;
         rgbStatus.setMode(RgbStatus::Mode::ReadyFlash);
@@ -449,10 +454,11 @@ bool Processor::send_to_parser(String command){
                     // Serial.println(PARSER.getSystemMessage()); // debugging
                     //gcode = parser.create_gcode_object(commandsArr, size);
                     GCODE = PARSER.create_gcode_object(commandsArr, size);
-                    if ((isSoundMCode(GCODE.main_command) || isRgbMCode(GCODE.main_command)) &&
+                    if ((isSoundMCode(GCODE.main_command) || isRgbMCode(GCODE.main_command) ||
+                         GCODE.main_command == "M741") &&
                         (size != 2 ||
                          !isValidSArgument(GCODE.main_command, commandsArr[1], GCODE.S))) {
-                        Serial.println("Error: sound/RGB commands require one valid S argument");
+                        Serial.println("Error: command requires one valid S argument");
                         return false;
                     }
                     if (GCODE.main_command == "G2" || GCODE.main_command == "G3") {
@@ -536,7 +542,8 @@ bool Processor::is_modifier_command(Parser::g_code_command gcode){
         gcode.main_command == "G20" || gcode.main_command == "G21" ||
         gcode.main_command == "M201" || gcode.main_command == "M203" ||
         gcode.main_command == "M92" || gcode.main_command == "M730" ||
-        gcode.main_command == "M502" || gcode.main_command == "M119"){
+        gcode.main_command == "M502" || gcode.main_command == "M119" ||
+        gcode.main_command == "M741"){
         return true;
     }
     return false;
@@ -626,9 +633,10 @@ bool Processor::send_to_motion_control(Parser::g_code_command gcode){
         modalFeedrate = gcode.F;
     }
 
+    const float maxXFeedrate = MAX_FEEDRATE_X / stepsPerUnit('X');
+    const float maxYFeedrate = MAX_FEEDRATE_Y / stepsPerUnit('Y');
     const float feed = (cmd == "G0" && !hasFeedrate)
-        ? G0_DEFAULT_FEEDRATE_STEPS_S /
-            fmax(stepsPerUnit('X'), stepsPerUnit('Y'))
+        ? fmax(maxXFeedrate, maxYFeedrate)
         : modalFeedrate;
     if (!isfinite(feed) || feed <= 0 || !isfinite(ACCELERATION) || ACCELERATION <= 0) {
         Serial.println("Error: feedrate and acceleration must be greater than zero");
@@ -659,11 +667,15 @@ bool Processor::send_to_motion_control(Parser::g_code_command gcode){
         movementSucceeded = M_Control.moveArc(x0, y0, x1, y1,
                                                centerX, centerY, feed, clockwise);
         if (!movementSucceeded) {
-            Serial.println("Error: arc is too large or has invalid motion settings");
+            Serial.println("Error: arc stopped by an endstop or has invalid motion settings");
         }
     } else {
-        M_Control.moveLine(x0, y0, x1, y1, feed);
+        movementSucceeded = M_Control.moveLine(x0, y0, x1, y1, feed);
+        if (!movementSucceeded) {
+            Serial.println("Error: motion stopped by an endstop");
+        }
     }
+    const bool crashDetected = M_Control.consumeCrashEvent();
 
     if (!movementSucceeded) {
         rgbStatus.setMode(RgbStatus::Mode::Ready);
@@ -673,11 +685,22 @@ bool Processor::send_to_motion_control(Parser::g_code_command gcode){
     Xcurrent = x1;
     Ycurrent = y1;
     rgbStatus.setMode(RgbStatus::Mode::Ready);
-    soundManager.playCompletionMelody();
+    if (!crashDetected) {
+        soundManager.playCompletionMelody();
+    }
     return true;
 }
 
 bool Processor::send_to_modifier(Parser::g_code_command gcode){
+    if (gcode.main_command == "M741") {
+        if (gcode.S != 0 && gcode.S != 1) {
+            Serial.println("Error: M741 S must be 0 or 1");
+            return false;
+        }
+        M_Control.setSafeMoveEnabled(gcode.S == 1);
+        return true;
+    }
+
     if (gcode.main_command == "G20" || gcode.main_command == "G21" ||
         gcode.main_command == "M730") {
         const int unit = gcode.main_command == "G20"

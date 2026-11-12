@@ -9,6 +9,7 @@ StepperMotor::StepperMotor(int stepPin, int dirPin, int enPin, int ms1, int ms2)
     _ms1 = ms1;
     _ms2 = ms2;
     _stepDelay = 100; // 100 us delay between step (default)
+    _isMoving = false;
     pinMode(enPin, OUTPUT);
     pinMode(stepPin, OUTPUT);
     pinMode(dirPin, OUTPUT);
@@ -143,7 +144,8 @@ void StepperMotor::runToPosition(int targetPosition){
 }
 //TODO: Implement Stop
 void StepperMotor::stop(){
-    /*Must stop instantly if crashed make use of the interupt pins*/
+    digitalWrite(_stepPin, LOW);
+    _isMoving = false;
 }
 
 // Helper methods

@@ -15,9 +15,23 @@ MotionControl::MotionControl(StepperMotor& motorX, StepperMotor& motorY1,
  :  _motorX(motorX),
     _motorY1(motorY1),
     _soundManager(soundManager),
-    _rgbStatus(rgbStatus)
+    _rgbStatus(rgbStatus),
+    _safeMoveEnabled(true),
+    _xLimitWasActive(false),
+    _yLimitWasActive(false),
+    _crashEvent(false)
 {
   
+}
+
+void MotionControl::begin() {
+    // Closed normally-closed switches ground the inputs; pull-ups mark opens HIGH.
+    pinMode(X_LIMIT_PIN, INPUT_PULLUP);
+    pinMode(Y_LIMIT_PIN, INPUT_PULLUP);
+}
+
+void MotionControl::updateEndstopStatus() {
+    checkLimitsAndStop();
 }
 
 // Core Methods
@@ -54,12 +68,12 @@ void MotionControl::moveNsteps(int n, char axis){
 
 /*
 */
-void MotionControl::moveLine(float x0, float y0, float x1, float y1, float feedrate){
+bool MotionControl::moveLine(float x0, float y0, float x1, float y1, float feedrate){
     const double deltaX = fabs(x1 - x0);
     const double deltaY = fabs(y1 - y0);
     const double pathLength = hypot(deltaX, deltaY);
     if (!isfinite(pathLength) || pathLength <= 0) {
-        return;
+        return true;
     }
 
     const double ratioX = deltaX / pathLength;
@@ -83,13 +97,13 @@ void MotionControl::moveLine(float x0, float y0, float x1, float y1, float feedr
     const float limitedAcceleration = static_cast<float>(pathAcceleration);
     if (!isfinite(limitedFeedrate) || limitedFeedrate <= 0 ||
         !isfinite(limitedAcceleration) || limitedAcceleration <= 0) {
-        return;
+        return true;
     }
 
     if (fabs(x1 - x0) > fabs(y1 - y0)){
-        moveHline(x0, y0, x1, y1, limitedFeedrate, limitedAcceleration);
+        return moveHline(x0, y0, x1, y1, limitedFeedrate, limitedAcceleration);
     } else{
-        moveVline(x0, y0, x1, y1, limitedFeedrate, limitedAcceleration);
+        return moveVline(x0, y0, x1, y1, limitedFeedrate, limitedAcceleration);
     }
 }
 
@@ -99,17 +113,30 @@ void MotionControl::moveLine(float x0, float y0, float x1, float y1, float feedr
 // void MotionControl::moveTo(float x, float y){
     
 // }
-void MotionControl::moveTo(int x0, int x1, int y0, int y1, int dt, float speedRatio){
+bool MotionControl::moveTo(int x0, int x1, int y0, int y1, int dt, float speedRatio){
+    if (checkLimitsAndStop()) {
+        return false;
+    }
+
     //TODO: need a to call on stepperMotor.cpp to move a single step at a time.
     _soundManager.updateStepSound(speedRatio);
     if (x0 != x1){
         _motorX.SingleStep(dt);
+        Xcurrent += (_motorX.getDirection() ? 1.0f : -1.0f) / stepsPerUnit('X');
+        if (checkLimitsAndStop()) {
+            return false;
+        }
     }
     if (y0 != y1){
         _motorY1.SingleStep(dt);
+        Ycurrent += (_motorY1.getDirection() ? 1.0f : -1.0f) / stepsPerUnit('Y');
+        if (checkLimitsAndStop()) {
+            return false;
+        }
     }
     _soundManager.update();
     _rgbStatus.update();
+    return true;
 }
 
 bool MotionControl::moveArc(float startX, float startY, float endX, float endY,
@@ -194,9 +221,12 @@ bool MotionControl::moveArc(float startX, float startY, float endX, float endY,
         const int stepDelay = pulseDelayUs >= INT_MAX
             ? INT_MAX
             : static_cast<int>(round(pulseDelayUs));
-        moveTo(previousX, nextX, previousY, nextY,
-               (stepDelay > 0) ? stepDelay : 1,
-               static_cast<float>(speed / requestedMaxSpeed));
+        if (!moveTo(previousX, nextX, previousY, nextY,
+                    (stepDelay > 0) ? stepDelay : 1,
+                    static_cast<float>(speed / requestedMaxSpeed))) {
+            _soundManager.finishStepSound();
+            return false;
+        }
 
         previousX = nextX;
         previousY = nextY;
@@ -209,7 +239,7 @@ bool MotionControl::moveArc(float startX, float startY, float endX, float endY,
 
 
 // x0 , y0, x1 and y1 are in units of mm or inches. 
-void MotionControl::moveHline (float x0, float y0, float x1, float y1,
+bool MotionControl::moveHline (float x0, float y0, float x1, float y1,
                                float feedrate, float acceleration){
     _motorX.setDirection(x0<x1);
     _motorY1.setDirection(y0<y1);
@@ -260,6 +290,7 @@ void MotionControl::moveHline (float x0, float y0, float x1, float y1,
 
     
     // dx in units of STEPS
+    bool completed = true;
     if (dx != 0 ){
         long y = y_0;
         long yPrev = y;
@@ -274,7 +305,11 @@ void MotionControl::moveHline (float x0, float y0, float x1, float y1,
             long dt = round(500000.0/vi);
             // Serial.println("(" + String(i)+ ", " + String(y) +", " + String(dt) +")"); // printing each stept to check if it correctly generates a line.
 
-            moveTo(x_0, x_0 + i, yPrev, y, dt, (Vmax > 0) ? vi / Vmax : 0);
+            if (!moveTo(x_0, x_0 + i, yPrev, y, dt,
+                        (Vmax > 0) ? vi / Vmax : 0)) {
+                completed = false;
+                break;
+            }
             yPrev = y;
             if (D >= 0){
                 y += dir;
@@ -286,12 +321,12 @@ void MotionControl::moveHline (float x0, float y0, float x1, float y1,
 
     }
     _soundManager.finishStepSound();
-
+    return completed;
 }
 
 
 // x0 , y0, x1 and y1 are in units of mm or inches. 
-void MotionControl::moveVline (float x0, float y0, float x1, float y1,
+bool MotionControl::moveVline (float x0, float y0, float x1, float y1,
                                float feedrate, float acceleration){
     _motorX.setDirection(x0<x1);
     _motorY1.setDirection(y0<y1);
@@ -339,6 +374,7 @@ void MotionControl::moveVline (float x0, float y0, float x1, float y1,
     dx *= dir;
     
     // dx in units of STEPS
+    bool completed = true;
     if (dy != 0 ){
         long x = x_0;
         long xPrev = x;
@@ -353,7 +389,11 @@ void MotionControl::moveVline (float x0, float y0, float x1, float y1,
             long dt = round(500000.0/vi);
             // Serial.println("(" + String(x)+ ", " + String(i) +", " + String(dt) +")"); // printing each stept to check if it correctly generates a line.
 
-            moveTo(xPrev, x, y_0, y_0 + i, dt, (Vmax > 0) ? vi / Vmax : 0);
+            if (!moveTo(xPrev, x, y_0, y_0 + i, dt,
+                        (Vmax > 0) ? vi / Vmax : 0)) {
+                completed = false;
+                break;
+            }
             xPrev = x;
             if (D >= 0){
                 x += dir;
@@ -365,9 +405,44 @@ void MotionControl::moveVline (float x0, float y0, float x1, float y1,
 
     }
     _soundManager.finishStepSound();
-
+    return completed;
 }
 
+bool MotionControl::checkLimitsAndStop() {
+    const bool xLimitActive = digitalRead(X_LIMIT_PIN) == HIGH;
+    const bool yLimitActive = digitalRead(Y_LIMIT_PIN) == HIGH;
+    const bool limitActive = xLimitActive || yLimitActive;
+    _rgbStatus.setCrashActive(limitActive);
+    if ((xLimitActive && !_xLimitWasActive) ||
+        (yLimitActive && !_yLimitWasActive)) {
+        _crashEvent = true;
+        _soundManager.playDeathMelody();
+    }
+    _xLimitWasActive = xLimitActive;
+    _yLimitWasActive = yLimitActive;
+
+    if (!limitActive || !_safeMoveEnabled) {
+        return false;
+    }
+
+    _motorX.stop();
+    _motorY1.stop();
+    return true;
+}
+
+void MotionControl::setSafeMoveEnabled(bool enabled) {
+    if (_safeMoveEnabled != enabled) {
+        _xLimitWasActive = false;
+        _yLimitWasActive = false;
+    }
+    _safeMoveEnabled = enabled;
+}
+
+bool MotionControl::consumeCrashEvent() {
+    const bool crashEvent = _crashEvent;
+    _crashEvent = false;
+    return crashEvent;
+}
 
 
 

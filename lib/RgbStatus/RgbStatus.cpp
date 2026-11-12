@@ -8,6 +8,7 @@ constexpr uint32_t EMERALD_GREEN = 0x006000;
 constexpr uint32_t READY_FLASH_ON_MS = 250;
 constexpr uint32_t MOVING_YELLOW = 0xFFFF00;
 constexpr uint32_t CRASH_RED = 0xFF0000;
+constexpr uint32_t CRASH_COLOR_INTERVAL_MS = 200;
 constexpr uint32_t STANDBY_PURPLE = 0x200080;
 constexpr uint32_t STANDBY_PINK = 0xFF1493;
 constexpr uint32_t LED_OFF = 0;
@@ -17,10 +18,12 @@ RgbStatus::RgbStatus(uint8_t dataPin)
     : _pixel(1, dataPin, NEO_GRB + NEO_KHZ800),
       _mode(Mode::Boot),
       _modeStartedAt(0),
+      _crashStartedAt(0),
       _lastColor(LED_OFF),
       _brightness(DEFAULT_LED_BRIGHTNESS),
       _enabled(true),
-      _begun(false)
+      _begun(false),
+      _crashActive(false)
 {
 }
 
@@ -36,6 +39,15 @@ void RgbStatus::begin() {
 
 void RgbStatus::update() {
     if (!_begun || !_enabled) {
+        return;
+    }
+
+    if (_crashActive) {
+        const uint32_t elapsed = millis() - _crashStartedAt;
+        const uint32_t color = (elapsed / CRASH_COLOR_INTERVAL_MS) % 2 == 0
+            ? MOVING_YELLOW
+            : CRASH_RED;
+        showColor(color);
         return;
     }
 
@@ -61,7 +73,9 @@ void RgbStatus::update() {
             color = MOVING_YELLOW;
             break;
         case Mode::Crash:
-            color = (elapsed % 160 < 80) ? CRASH_RED : LED_OFF;
+            color = (elapsed / CRASH_COLOR_INTERVAL_MS) % 2 == 0
+                ? MOVING_YELLOW
+                : CRASH_RED;
             break;
         case Mode::Standby: {
             const uint32_t phase = elapsed % 4000;
@@ -105,6 +119,17 @@ void RgbStatus::setMode(Mode mode) {
 
     _mode = mode;
     _modeStartedAt = millis();
+    _lastColor = UINT32_MAX;
+    update();
+}
+
+void RgbStatus::setCrashActive(bool active) {
+    if (_crashActive == active) {
+        return;
+    }
+
+    _crashActive = active;
+    _crashStartedAt = millis();
     _lastColor = UINT32_MAX;
     update();
 }

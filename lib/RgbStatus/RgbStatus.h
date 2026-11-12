@@ -22,6 +22,7 @@ public:
     void setEnabled(bool enabled);
     void setBrightness(uint8_t brightness);
     void setMode(Mode mode);
+    void setCrashActive(bool active);
 
 private:
     void showColor(uint32_t color);
@@ -29,10 +30,12 @@ private:
     Adafruit_NeoPixel _pixel;
     Mode _mode;
     uint32_t _modeStartedAt;
+    uint32_t _crashStartedAt;
     uint32_t _lastColor;
     uint8_t _brightness;
     bool _enabled;
     bool _begun;
+    bool _crashActive;
 };
 
 #endif

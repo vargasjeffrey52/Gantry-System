@@ -12,7 +12,7 @@ alone and keep its explanation outside the command.
 Examples:
 
 ```text
-10 Y20 F10
+G0 X10 Y20 F10
 M700 S1
 G21
 M730 S0
@@ -35,7 +35,7 @@ steps/mm. Movement supports X and Y coordinates; Z movement is not implemented.
 
 | Command | Example             | Current behavior                                                                                                                                          |
 | ------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `G0`  | `G0 X10 Y20`      | Rapid XY move, using `G0_DEFAULT_FEEDRATE_STEPS_S` when `F` is omitted. An explicit `F` overrides the rapid default and updates the modal feedrate. |
+| `G0`  | `G0 X10 Y20`      | Rapid XY move, requesting the current maximum feedrate when `F` is omitted; `M203` caps each axis and `M201` limits acceleration. An explicit `F` overrides the rapid request and updates the modal feedrate. |
 | `G1`  | `G1 X10 Y20 F10`  | XY move using the modal feedrate; `F` is in steps/s in the default mode.                                                                                |
 | `G2`  | `G2 X10 Y0 I5 J0` | Clockwise XY arc using center offsets from the arc start.                                                                                                 |
 | `G3`  | `G3 X10 Y0 R5`    | Counterclockwise XY arc using a radius.                                                                                                                   |
@@ -57,30 +57,39 @@ completion melody is requested after a supported `G0`–`G3` move returns.
 
 ## Mode, position, and motor commands
 
-| Command  | Example            | Current behavior                                                                                                        |
-| -------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `G90`  | `G90`            | Use absolute X/Y endpoints.                                                                                             |
-| `G91`  | `G91`            | Use relative X/Y endpoints.                                                                                             |
-| `G92`  | `G92 X0 Y0`      | Set the logical current position without moving the gantry.                                                             |
-| `G28`  | `G28`            | Accepted by the parser; homing is not implemented.                                                                      |
-| `M17`  | `M17 X Z`        | Enable the selected X/Y/Z stepper drivers; with no selectors, enable all three. Y selects both linked Y drivers.        |
-| `M18`  | `M18 Y`          | Disable the selected X/Y/Z stepper drivers; with no selectors, disable all three. Y selects both linked Y drivers.      |
-| `G20`  | `G20`            | Select inches, converting the tracked position and modal feedrate without changing the physical position or speed.      |
-| `G21`  | `G21`            | Select millimeters, converting the tracked position and modal feedrate without changing the physical position or speed. |
-| `M730` | `M730 S0`        | Select units: `S0` steps, `S1` millimeters, `S2` inches.                                                          |
-| `M92`  | `M92 X80 Y80`    | Store per-axis steps/mm calibration; omitted axes keep their current calibration.                                       |
+| Command  | Example                    | Current behavior                                                                                                        |
+| -------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `G90`  | `G90`                    | Use absolute X/Y endpoints.                                                                                             |
+| `G91`  | `G91`                    | Use relative X/Y endpoints.                                                                                             |
+| `G92`  | `G92 X0 Y0`              | Set the logical current position without moving the gantry.                                                             |
+| `G28`  | `G28`                    | Accepted by the parser; homing is not implemented.                                                                      |
+| `M17`  | `M17 X Z`                | Enable the selected X/Y/Z stepper drivers; with no selectors, enable all three. Y selects both linked Y drivers.        |
+| `M18`  | `M18 Y`                  | Disable the selected X/Y/Z stepper drivers; with no selectors, disable all three. Y selects both linked Y drivers.      |
+| `G20`  | `G20`                    | Select inches, converting the tracked position and modal feedrate without changing the physical position or speed.      |
+| `G21`  | `G21`                    | Select millimeters, converting the tracked position and modal feedrate without changing the physical position or speed. |
+| `M730` | `M730 S0`                | Select units: `S0` steps, `S1` millimeters, `S2` inches.                                                          |
+| `M92`  | `M92 X80 Y80`            | Store per-axis steps/mm calibration; omitted axes keep their current calibration.                                       |
 | `M201` | `M201 X4000000 Y4000000` | Set per-axis maximum acceleration in the active coordinate unit/s².                                                    |
 | `M203` | `M203 X64000 Y12000`     | Set per-axis maximum feedrate in the active coordinate unit/s; moves are capped by these limits.                        |
-| `M502` | `M502`           | Accepted by the parser, but reset behavior is not implemented and the command returns an error.                         |
-| `M114` | `M114`           | Report the tracked logical X and Y coordinates; this is not sensor feedback.                                            |
-| `M119` | `M119`           | Endstop reporting is not implemented and the command returns an error.                                                  |
+| `M741` | `M741 S1` / `M741 S0`  | Enable / disable safe-move stopping on X/Y endstop activation. Defaults to enabled after boot.                          |
+| `M502` | `M502`                   | Accepted by the parser, but reset behavior is not implemented and the command returns an error.                         |
+| `M114` | `M114`                   | Report the tracked logical X and Y coordinates; this is not sensor feedback.                                            |
+| `M119` | `M119`                   | Endstop reporting is not implemented and the command returns an error.                                                  |
 
 XY motion enables both X/Y drivers and leaves them enabled until an `M18` command
 disables them. A later XY move re-enables both. Z motor enable control is supported,
 but Z movement is not implemented.
 
 Homing (`G28`), reset (`M502`), and endstop reporting (`M119`) do not have
-functional implementations yet. `M92`, `M201`, and `M203` settings are held in
+functional implementations yet. The X endstop input is GPIO 6 and the Y
+endstop input is GPIO 5. Both inputs use pull-ups and expect normally-closed
+switches wired to ground, reading LOW while the circuit is closed and HIGH
+when a switch opens; the two X
+endstop switches are wired in series for each axis. On a crash, the firmware plays the`M700 S7` death melody. Safe-move stopping is enabled by default; `M741 S1`
+enables it and `M741 S0` disables stopping while retaining crash sound playback.
+With safe move enabled, an active endstop stops the current move and both
+stepper pulse outputs; clear the endstop circuit before moving again. `M92`,
+`M201`, and `M203` settings are held in
 RAM and reset to their defaults after reboot. The default unit mode is steps.
 The stored calibration defaults to 60 steps/mm for each axis; `M92 X80 Y80`
 changes the stored X/Y calibration to 80 steps/mm. Motion limits are stored
@@ -134,9 +143,9 @@ The startup melody plays once during boot: the six-note 1-Up fanfare
 after a supported movement command finishes. Step sounds are off by default
 and are suppressed while a melody or other tone is playing. When enabled,
 their pitch follows the movement speed, rising during acceleration and
-falling during deceleration and after the move. `M700 S5` requests
-the crash melody manually; automatic crash playback requires crash detection
-hardware and logic, which are not currently implemented.
+falling during deceleration and after the move. `M700 S5` requests the crash
+melody manually. X/Y endstop activation also plays the `M700 S7` death melody,
+whether safe-move stopping is enabled or disabled.
 
 ## RGB status LED
 
@@ -148,9 +157,9 @@ without serial input, standby begins: the SoundManager repeats the custom theme
 (`M700 S6`) non-blockingly only after sound is enabled with `M710 S1`; standby
 sound is off by default. The LED continues its deep-purple 2-second, pink
 2-second flash cycle regardless of the sound setting. Any incoming serial data
-stops the standby melody immediately and exits standby. The crash pattern (red
-flash) is available in `RgbStatus`, but automatic crash detection is not
-implemented.
+stops the standby melody immediately and exits standby. While either endstop
+is active, the status LED alternates yellow and red; it returns to the current
+status pattern after the endstop circuit closes.
 
 | Command                    | Action                                                                  |
 | -------------------------- | ----------------------------------------------------------------------- |

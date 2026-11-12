@@ -28,14 +28,15 @@
 #define DIRZ 13
 #define BUZZER_PIN 4
 #define RGB_LED_PIN 48
+#define X_LIMIT_PIN 6
+#define Y_LIMIT_PIN 5
 
 
 
 #define NUMBER_OF_GCODES 3 // number of g-codes that will be allowed in buffer
-#define NUM_VALID_COMMANDS_W_PARAMS 18 // movement, motion settings, sound, and RGB commands
+#define NUM_VALID_COMMANDS_W_PARAMS 19 // movement, motion settings, sound, RGB, and safety commands
 #define NUM_VALID_COMMANDS_WO_PARAMS 7 // number of commands that take no parameters
 #define MIN_INT -32768 // used as NAN 
-#define G0_DEFAULT_FEEDRATE_STEPS_S 1666.65 // steps/s, used by G0 only when F is omitted
 
 
 extern int CURRENT_UNIT;

@@ -14,14 +14,16 @@ public:
                   SoundManager& soundManager, RgbStatus& rgbStatus);
 
     // Core Methods
+    void begin();
+    void updateEndstopStatus();
     void moveNsteps(int n, char axis);
     //
     
     
     //void moveLine(int x0, int y0, int x1, int y1);
-    void moveLine(float x0, float y0, float x1, float y1, float feedrate);
+    bool moveLine(float x0, float y0, float x1, float y1, float feedrate);
     //void moveTo(float x, float y);
-    void moveTo(int x0, int x1, int y0, int y1, int dt, float speedRatio);
+    bool moveTo(int x0, int x1, int y0, int y1, int dt, float speedRatio);
     bool moveArc(float startX, float startY, float endX, float endY,
                  float centerX, float centerY, float feedrate, bool clockwise);
     void moveBy(float dx, float dy);
@@ -32,6 +34,8 @@ public:
     void setAcceleration(float acceleration);
     bool isMoving();
     void stop();
+    void setSafeMoveEnabled(bool enabled);
+    bool consumeCrashEvent();
 
     // Position Tracking
     float getCurrentX();
@@ -46,10 +50,11 @@ public:
     void printStatus();
 
 private:
-    void moveHline (float x0, float y0, float x1, float y1,
+    bool moveHline (float x0, float y0, float x1, float y1,
                     float feedrate, float acceleration);
-    void moveVline (float x0, float y0, float x1, float y1,
+    bool moveVline (float x0, float y0, float x1, float y1,
                     float feedrate, float acceleration);
+    bool checkLimitsAndStop();
     int convertToSteps(float x, char axis);
     StepperMotor& _motorX;
     StepperMotor& _motorY1;
@@ -64,6 +69,10 @@ private:
 
     float _maxX;
     bool _isHomed;
+    bool _safeMoveEnabled;
+    bool _xLimitWasActive;
+    bool _yLimitWasActive;
+    bool _crashEvent;
 };
 
 #endif // MOTIONCONTROL_H
